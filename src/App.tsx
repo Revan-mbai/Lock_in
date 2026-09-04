@@ -4,6 +4,7 @@ import { Header } from './components/Header';
 import { HomePage } from './components/HomePage';
 import { MethodDetailView } from './components/MethodDetailView';
 import { StudyStatsModal } from './components/StudyStatsModal';
+import { OfflineIndicator } from './components/OfflineIndicator';
 
 const STORAGE_KEY_LOGS = 'study_methods_focus_logs_v1';
 
@@ -132,6 +133,9 @@ export default function App() {
         logs={sessionLogs}
         onClearLogs={handleClearLogs}
       />
+
+      {/* PWA Offline Mode Indicator */}
+      <OfflineIndicator />
     </div>
   );
 }

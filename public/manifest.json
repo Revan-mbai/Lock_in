@@ -1,0 +1,33 @@
+{
+  "id": "/",
+  "name": "Lock In - Focus & Break Suite",
+  "short_name": "Lock In",
+  "description": "A warm, minimalistic study suite with automated focus and break timers for Pomodoro, Flowtime, 90-Minute Cycles, Time Boxing, and the 52/17 Rule.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#FAF8F5",
+  "background_color": "#FAF8F5",
+  "categories": ["education", "productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/pwa-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-maskable-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

@@ -1,5 +1,6 @@
 import { ActiveTab } from '../types';
 import { AmbientSoundPlayer } from './AmbientSoundPlayer';
+import { PWAInstallButton } from './PWAInstallButton';
 import { Bell, BellOff, Maximize2, Minimize2, BarChart2, BookOpen, Layers } from 'lucide-react';
 
 interface HeaderProps {
@@ -94,6 +95,9 @@ export function Header({
 
           {/* Right Toolbar Utilities */}
           <div className="flex items-center gap-1.5 sm:gap-2">
+            {/* Install App Button / Add to Home Screen */}
+            <PWAInstallButton />
+
             {/* Ambient Noise Player */}
             <AmbientSoundPlayer
               isPlaying={isAmbientPlaying}
