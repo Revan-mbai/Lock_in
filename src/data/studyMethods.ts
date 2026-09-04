@@ -1,0 +1,125 @@
+import { StudyMethodInfo } from '../types';
+
+export const STUDY_METHODS: StudyMethodInfo[] = [
+  {
+    id: 'pomodoro',
+    name: 'Pomodoro Technique',
+    subtitle: 'Classic Rhythm for Sustained Stamina',
+    tagline: '25 minutes of intense focus followed by a 5-minute break',
+    focusTimeDisplay: '25 min',
+    breakTimeDisplay: '5 min',
+    origin: 'Developed by Francesco Cirillo in the late 1980s using a tomato-shaped kitchen timer.',
+    description: 'The Pomodoro Technique trains your mind to resist procrastination by breaking study workloads into manageable 25-minute sprints separated by quick restorative breathers. After completing four cycles, a longer 15-minute break is taken.',
+    bestFor: [
+      'Overcoming study inertia & procrastination',
+      'High-volume flashcard memorization & quiz review',
+      'Textbook reading & chapter summaries',
+      'Routine problem sets with steady pacing',
+    ],
+    howItWorks: [
+      'Choose a single clear learning objective or problem set.',
+      'Start the 25-minute focus timer. Work with zero notifications or tab switching.',
+      'When the timer rings, step away immediately for 5 minutes (stretch, hydrate, rest eyes).',
+      'Every 4 pomodoros, enjoy a longer 15 to 20-minute restorative recovery.',
+    ],
+    scienceNote: 'Short, frequent breaks prevent cognitive fatigue, stave off ego depletion, and help synaptic consolidation without losing mental context.',
+    accentColor: '#C86D51', // warm terracotta
+  },
+  {
+    id: 'flowtime',
+    name: 'Flowtime Technique',
+    subtitle: 'Uninterrupted Deep Work for Natural Thinkers',
+    tagline: 'Work uninterrupted until your focus naturally wanes, then rest proportionally',
+    focusTimeDisplay: 'Flexible (Stopwatch)',
+    breakTimeDisplay: '5 – 15 min proportional',
+    origin: 'Created by productivity researcher Zoë Readhead as a modern antidote to rigid timer interruptions.',
+    description: 'Unlike rigid interval timers that jolt you out of the zone right when you hit your stride, the Flowtime Technique allows you to work as long as you feel energized. When your mind signals fatigue, you stop and receive a scientifically scaled break.',
+    bestFor: [
+      'Complex coding, debugging & algorithm design',
+      'Academic research papers & deep analytical essays',
+      'Creative problem-solving & mathematical proofs',
+      'Students frustrated by arbitrary 25-minute interruptions',
+    ],
+    howItWorks: [
+      'Start the Flow stopwatch and focus on a single challenging task.',
+      'Keep studying as long as your attention stays sharp and frictionless.',
+      'The moment you notice daydreaming, fidgeting, or mental friction, click "Take Break".',
+      'Our intelligent calculator automatically sets your proportional break timer (<25m: 5m, 25-50m: 8m, 50-90m: 10m, >90m: 15m).',
+    ],
+    scienceNote: 'Protects the fragile psychological state of "Flow" (Csíkszentmihályi), preventing the 15-20 minute cognitive restart tax caused by arbitrary bell interruptions.',
+    accentColor: '#58705C', // warm sage green
+  },
+  {
+    id: 'ninety-min',
+    name: '90-Minute Work Cycle',
+    subtitle: 'Ultradian Rhythm Deep Work',
+    tagline: '90 minutes of peak cognitive output followed by 20 minutes of deep rest',
+    focusTimeDisplay: '90 min',
+    breakTimeDisplay: '20 min',
+    origin: 'Pioneered by sleep researcher Nathan Kleitman and popularized by Tony Schwartz in The Power of Full Engagement.',
+    description: 'Human physiology operates on 90 to 120-minute biological cycles known as Basic Rest-Activity Cycles (BRAC). Aligning your study blocks with your brain’s natural wave patterns maximizes deep information processing before metabolic fatigue sets in.',
+    bestFor: [
+      'Full-length practice exams (SAT, MCAT, GRE, Bar, Finals)',
+      'Comprehensive exam cramming & heavy concept synthesis',
+      'Writing multi-page research drafts or thesis chapters',
+      'Deep architectural thinking & systems architecture',
+    ],
+    howItWorks: [
+      'Prepare your workspace completely before starting (water, notes, references ready).',
+      'Minutes 0–15: Cognitive warm-up and establishing focus.',
+      'Minutes 15–75: Peak output phase with maximum analytical velocity.',
+      'Minutes 75–90: Winding down and organizing completed takeaways.',
+      'Minutes 90–110: 20-minute genuine break (walk, nourish, close eyes away from blue light).',
+    ],
+    scienceNote: 'After ~90 minutes of intensive mental effort, brain glycogen and cellular energy drop while adenosine accumulates. A 20-minute detached rest recharges prefrontal cortex neurotransmitters.',
+    accentColor: '#7C6F5A', // warm earthen bronze
+  },
+  {
+    id: 'time-boxing',
+    name: 'Time Boxing',
+    subtitle: 'Targeted Block Scheduling for Busy Days',
+    tagline: 'Allocate strict, dedicated time windows to conquer your daily study agenda',
+    focusTimeDisplay: 'Custom Blocks',
+    breakTimeDisplay: 'Built-in Buffers',
+    origin: 'Endorsed by Harvard Business Review as one of the #1 most effective productivity systems.',
+    description: 'Time Boxing transforms vague to-do lists into concrete appointments on your clock. Instead of working indefinitely until a task is done, you assign a finite "box" of time (e.g. 35 minutes for Chemistry, 10-minute break, then 40 minutes for Calculus). Parkinson’s Law ensures you get it done within the allotted boundary.',
+    bestFor: [
+      'Balancing multiple subjects or classes in a single afternoon',
+      'Tackling open-ended assignments that risk dragging on all day',
+      'Exam preparation across several distinct topic modules',
+      'Disciplined daily schedules with defined start and end times',
+    ],
+    howItWorks: [
+      'Review your study obligations and build your sequence of timed boxes.',
+      'Assign realistic time allocations with scheduled rest blocks in between.',
+      'Hit Start on your active box. Focus solely on that specific subject.',
+      'When the box finishes, the system automatically transitions to the next scheduled block.',
+    ],
+    scienceNote: 'Leverages Parkinson’s Law: "Work expands to fill the time available for its completion." Strict time boundaries eliminate perfectionist dithering.',
+    accentColor: '#B45309', // warm amber
+  },
+  {
+    id: 'fifty-two-seventeen',
+    name: 'The 52/17 Rule',
+    subtitle: 'The Empirical Golden Ratio of Sprint Productivity',
+    tagline: '52 minutes of uncompromised sprint followed by 17 minutes of disconnected renewal',
+    focusTimeDisplay: '52 min',
+    breakTimeDisplay: '17 min',
+    origin: 'Discovered in a landmark workplace tracking study by DeskTime analyzing the habits of the top 10% highest performers.',
+    description: 'DeskTime tracking software analyzed 5.5 million daily work sessions and discovered that the most productive students and knowledge workers did not pull marathon hours. Instead, they worked with fierce intensity for roughly 52 minutes, then completely unplugged for exactly 17 minutes.',
+    bestFor: [
+      'Mid-length intensive study sprints requiring both stamina and depth',
+      'Writing literature reviews and lab reports',
+      'Translating and annotating foreign language texts',
+      'Preventing screen fatigue and eye strain during long library sessions',
+    ],
+    howItWorks: [
+      'Dedicate the 52-minute sprint strictly to single-task study with zero distractions.',
+      'When the transition chime rings, honor the 17-minute break completely.',
+      'Do not switch to social media or phone scrolling during the 17 minutes.',
+      'Take a brisk stroll, drink a glass of water, or rest your eyes in natural sunlight.',
+    ],
+    scienceNote: 'A 17-minute rest is long enough to fully disengage the brain’s executive network and allow the default mode network (DMN) to process and solidify newly learned data.',
+    accentColor: '#4A6B82', // warm muted slate blue
+  },
+];

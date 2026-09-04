@@ -1,0 +1,6 @@
+{
+  "name": "Lock In",
+  "description": "A warm, minimalistic study suite with interactive automated focus and break timers for Pomodoro, Flowtime, 90-Minute Cycles, Time Boxing, and the 52/17 Rule.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
