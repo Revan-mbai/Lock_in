@@ -3,6 +3,7 @@ import { Play, Pause, RotateCcw, SkipForward, Sparkles, Activity, Moon, Sun } fr
 import { formatTimeWithHours } from '../../utils/formatters';
 import { playFocusCompleteChime, playBreakCompleteChime } from '../../utils/audio';
 import { FocusSessionLog } from '../../types';
+import { loadNinetyMinState, saveNinetyMinState, MAX_LIVE_GAP_SECONDS } from '../../utils/timerPersistence';
 
 interface NinetyMinTimerProps {
   onSessionComplete: (log: Omit<FocusSessionLog, 'id' | 'completedAt'>) => void;
@@ -13,48 +14,87 @@ export function NinetyMinTimer({ onSessionComplete, soundEnabled }: NinetyMinTim
   const WORK_SECONDS = 90 * 60; // 90 mins = 5400s
   const BREAK_SECONDS = 20 * 60; // 20 mins = 1200s
 
-  const [phase, setPhase] = useState<'work' | 'break'>('work');
-  const [timeLeft, setTimeLeft] = useState(WORK_SECONDS);
-  const [isRunning, setIsRunning] = useState(false);
-  const [taskSubject, setTaskSubject] = useState('');
-  const [autoStartNext, setAutoStartNext] = useState(true);
+  // Load saved state once on mount rather than re-parsing localStorage on every render.
+  const [saved] = useState(loadNinetyMinState);
+
+  const [phase, setPhase] = useState<'work' | 'break'>(() => saved?.phase ?? 'work');
+  const [timeLeft, setTimeLeft] = useState(() => saved?.timeLeft ?? WORK_SECONDS);
+  const [isRunning, setIsRunning] = useState(() => saved?.isRunning ?? false);
+  const [taskSubject, setTaskSubject] = useState(() => saved?.taskSubject ?? '');
+  const [autoStartNext, setAutoStartNext] = useState(() => saved?.autoStartNext ?? true);
   const [transitionNotification, setTransitionNotification] = useState<string | null>(null);
 
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastTickRef = useRef<number>(Date.now());
+  const notificationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Guards the phase transition so a single expiry can only fire it once. Starts false: the
+  // loader only returns isRunning with timeLeft at 0 when the block really did run out while
+  // the app was briefly away, and that session still deserves to be logged.
+  const transitionFiredRef = useRef(false);
+
+  // Show a transition banner, replacing any banner still counting down.
+  const showTransitionNotification = (message: string) => {
+    setTransitionNotification(message);
+    if (notificationTimeoutRef.current) clearTimeout(notificationTimeoutRef.current);
+    notificationTimeoutRef.current = setTimeout(() => {
+      setTransitionNotification(null);
+      notificationTimeoutRef.current = null;
+    }, 4000);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (notificationTimeoutRef.current) clearTimeout(notificationTimeoutRef.current);
+    };
+  }, []);
+
+  // Save changes to localStorage
+  useEffect(() => {
+    saveNinetyMinState({
+      phase,
+      timeLeft,
+      isRunning,
+      taskSubject,
+      autoStartNext,
+    });
+  }, [phase, timeLeft, isRunning, taskSubject, autoStartNext]);
 
   const totalPhaseSeconds = phase === 'work' ? WORK_SECONDS : BREAK_SECONDS;
   const progressPercent = Math.min(100, Math.max(0, ((totalPhaseSeconds - timeLeft) / totalPhaseSeconds) * 100));
 
   // Determine current ultradian stage during 90m work
   const elapsedWorkMinutes = (WORK_SECONDS - timeLeft) / 60;
-  let ultradianStage = 'Acclimatization & Warm-up (0 - 15m)';
+  let ultradianStage = 'Warm-up (0–15m)';
   if (phase === 'work') {
     if (elapsedWorkMinutes >= 75) {
-      ultradianStage = 'Consolidation & Winding Down (75 - 90m)';
+      ultradianStage = 'Winding Down (75–90m)';
     } else if (elapsedWorkMinutes >= 15) {
-      ultradianStage = 'Peak Cognitive Velocity (15 - 75m)';
+      ultradianStage = 'Peak Velocity (15–75m)';
     }
   } else {
-    ultradianStage = 'Deep Glycogen Replenishment & Rest';
+    ultradianStage = 'Rest & Recovery';
   }
 
-  const handlePhaseTransition = (fromPhase: 'work' | 'break') => {
+  // `elapsedSeconds` is the time actually spent in the phase, so skipping early logs what
+  // was really studied instead of crediting a full 90-minute block.
+  const handlePhaseTransition = (fromPhase: 'work' | 'break', elapsedSeconds: number) => {
     if (fromPhase === 'work') {
-      onSessionComplete({
-        methodId: 'ninety-min',
-        methodName: '90-Minute Work Cycle',
-        taskTitle: taskSubject.trim() || '90-Min Ultradian Block',
-        durationMinutes: 90,
-        phase: 'work',
-      });
+      const focusedMinutes = Math.round(elapsedSeconds / 60);
+      if (focusedMinutes >= 1) {
+        onSessionComplete({
+          methodId: 'ninety-min',
+          methodName: '90-Minute Work Cycle',
+          taskTitle: taskSubject.trim() || '90-Min Ultradian Block',
+          durationMinutes: focusedMinutes,
+          phase: 'work',
+        });
+      }
 
       if (soundEnabled) playFocusCompleteChime();
 
       setPhase('break');
       setTimeLeft(BREAK_SECONDS);
-      setTransitionNotification(
-        '90-Minute cycle finished! Shifting automatically into your 20-minute restorative break.'
-      );
+      showTransitionNotification('90m cycle done. Starting 20m break.');
 
       if (autoStartNext) {
         setIsRunning(true);
@@ -66,7 +106,7 @@ export function NinetyMinTimer({ onSessionComplete, soundEnabled }: NinetyMinTim
 
       setPhase('work');
       setTimeLeft(WORK_SECONDS);
-      setTransitionNotification('20-minute recovery complete! Energy restored for the next ultradian cycle.');
+      showTransitionNotification('Break complete. Ready for 90m focus.');
 
       if (autoStartNext) {
         setIsRunning(true);
@@ -74,40 +114,82 @@ export function NinetyMinTimer({ onSessionComplete, soundEnabled }: NinetyMinTim
         setIsRunning(false);
       }
     }
-
-    setTimeout(() => {
-      setTransitionNotification(null);
-    }, 7000);
   };
 
+  // The updater stays pure — scheduling the phase transition from inside it made React run
+  // the transition twice under StrictMode, which logged every completed cycle twice.
   useEffect(() => {
-    if (isRunning) {
-      timerRef.current = setInterval(() => {
-        setTimeLeft((prev) => {
-          if (prev <= 1) {
-            handlePhaseTransition(phase);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    } else if (timerRef.current) {
-      clearInterval(timerRef.current);
-    }
+    if (!isRunning) return;
+
+    lastTickRef.current = Date.now();
+
+    const tick = () => {
+      // Advance by whole seconds and carry the sub-second remainder. Rounding (and flooring
+      // at 1) meant the extra visibilitychange tick could charge a full second for a few
+      // milliseconds, so the countdown ran fast on every tab switch.
+      const delta = Math.floor((Date.now() - lastTickRef.current) / 1000);
+      if (delta <= 0) return;
+      lastTickRef.current += delta * 1000;
+      if (delta > MAX_LIVE_GAP_SECONDS) {
+        // Far more time passed than any block can span, so the machine was asleep rather
+        // than the tab merely backgrounded. Pause instead of banking a session.
+        setIsRunning(false);
+        return;
+      }
+      setTimeLeft((prev) => Math.max(0, prev - delta));
+    };
+
+    timerRef.current = setInterval(tick, 1000);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        tick();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
+      timerRef.current = null;
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [isRunning, phase, autoStartNext]);
+  }, [isRunning]);
 
-  const handleStartPause = () => setIsRunning(!isRunning);
+  // Fire the phase transition once the countdown reaches zero. Running it here rather than
+  // inside the tick means it always sees the current task name and sound setting.
+  useEffect(() => {
+    if (timeLeft > 0) {
+      transitionFiredRef.current = false;
+      return;
+    }
+    if (!isRunning || transitionFiredRef.current) return;
+    transitionFiredRef.current = true;
+    handlePhaseTransition(phase, totalPhaseSeconds);
+  }, [timeLeft, isRunning, phase, totalPhaseSeconds]);
+
+  const handleStartPause = () => {
+    // Pressing Play on an exhausted block starts the next one rather than re-completing the
+    // spent one and logging a phantom full-length session.
+    if (!isRunning && timeLeft <= 0) {
+      setTimeLeft(totalPhaseSeconds);
+    }
+    setIsRunning(!isRunning);
+  };
 
   const handleReset = () => {
     setIsRunning(false);
     setTimeLeft(phase === 'work' ? WORK_SECONDS : BREAK_SECONDS);
   };
 
-  const handleSkipPhase = () => handlePhaseTransition(phase);
+  const handleSkipPhase = () => {
+    // Two clicks dispatched before React re-renders share this closure, so without a guard a
+    // fast double-click credited the same block twice. transitionFiredRef is reset by the
+    // zero-detection effect as soon as the next phase's countdown is in place.
+    if (transitionFiredRef.current) return;
+    transitionFiredRef.current = true;
+    // Credit only the time actually spent, not the whole configured block.
+    handlePhaseTransition(phase, totalPhaseSeconds - timeLeft);
+  };
 
   return (
     <div id="ninety-min-timer-container" className="max-w-2xl mx-auto space-y-6">
@@ -149,7 +231,7 @@ export function NinetyMinTimer({ onSessionComplete, soundEnabled }: NinetyMinTim
                 : 'text-[#78716C] hover:text-[#292524] bg-[#F7F5F0]'
             }`}
           >
-            Deep Cycle (90 min)
+            Focus (90m)
           </button>
           <button
             id="ninety-min-break-tab"
@@ -166,14 +248,14 @@ export function NinetyMinTimer({ onSessionComplete, soundEnabled }: NinetyMinTim
                 : 'text-[#78716C] hover:text-[#292524] bg-[#F7F5F0]'
             }`}
           >
-            Restorative Break (20 min)
+            Break (20m)
           </button>
         </div>
 
         {/* Task Focus Input */}
         <div className="max-w-md mx-auto mb-8">
           <label htmlFor="ninety-task-input" className="block text-center text-xs tracking-wider uppercase text-[#78716C] mb-2 font-medium">
-            {phase === 'work' ? '90-Minute Deep Work Goal' : 'Unplugged Rest Period'}
+            {phase === 'work' ? 'Task' : 'Break'}
           </label>
           {phase === 'work' ? (
             <input
@@ -181,12 +263,12 @@ export function NinetyMinTimer({ onSessionComplete, soundEnabled }: NinetyMinTim
               type="text"
               value={taskSubject}
               onChange={(e) => setTaskSubject(e.target.value)}
-              placeholder="e.g., Drafting Chapter 2 of Senior Thesis..."
+              placeholder="e.g. Drafting chapter 2..."
               className="w-full text-center px-4 py-2.5 rounded-xl border border-[#E7E3DC] bg-[#FAF8F5] text-sm text-[#292524] placeholder-[#A8A29E] focus:outline-none focus:border-[#7C6F5A] transition-colors"
             />
           ) : (
             <p className="text-center text-sm font-serif italic text-[#7C6F5A]">
-              Walk outside, stretch, lie down, or breathe deeply. Zero digital inputs recommended.
+              Walk, stretch, or hydrate without screens.
             </p>
           )}
         </div>
@@ -215,10 +297,10 @@ export function NinetyMinTimer({ onSessionComplete, soundEnabled }: NinetyMinTim
                 {formatTimeWithHours(timeLeft)}
               </span>
               <span className="text-xs font-medium uppercase tracking-widest text-[#78716C] mt-2">
-                {phase === 'work' ? 'Ultradian Focus' : 'Cellular Renewal'}
+                {phase === 'work' ? 'Focus' : 'Break'}
               </span>
               <span className="text-[11px] text-[#A8A29E] mt-1">
-                {autoStartNext ? 'Auto-shifts into 20m break' : 'Manual shift'}
+                {autoStartNext ? 'Auto-shifts into break' : 'Manual shift'}
               </span>
             </div>
           </div>
@@ -230,9 +312,9 @@ export function NinetyMinTimer({ onSessionComplete, soundEnabled }: NinetyMinTim
             <div className="flex items-center justify-between text-[#78716C] mb-1.5">
               <span className="flex items-center gap-1.5 font-medium text-[#292524]">
                 <Activity className="w-3.5 h-3.5 text-[#7C6F5A]" />
-                Current Biological Phase:
+                Phase:
               </span>
-              <span className="font-mono">{Math.floor(elapsedWorkMinutes)} / 90 min</span>
+              <span className="font-mono">{Math.floor(elapsedWorkMinutes)} / 90m</span>
             </div>
             <div className="font-medium text-[#7C6F5A]">{ultradianStage}</div>
             {/* 3-segment progress meter */}
@@ -272,7 +354,7 @@ export function NinetyMinTimer({ onSessionComplete, soundEnabled }: NinetyMinTim
             ) : (
               <>
                 <Play className="w-4 h-4 fill-current ml-0.5" />
-                <span>{timeLeft < totalPhaseSeconds ? 'Resume' : 'Start 90-Min Cycle'}</span>
+                <span>{timeLeft < totalPhaseSeconds ? 'Resume' : 'Start'}</span>
               </>
             )}
           </button>
@@ -291,7 +373,7 @@ export function NinetyMinTimer({ onSessionComplete, soundEnabled }: NinetyMinTim
         <div className="mt-10 pt-6 border-t border-[#F0ECE4] flex items-center justify-between text-xs text-[#78716C]">
           <div className="flex items-center gap-1.5">
             {phase === 'work' ? <Sun className="w-4 h-4 text-[#7C6F5A]" /> : <Moon className="w-4 h-4 text-[#58705C]" />}
-            <span>{phase === 'work' ? '90m Focus Sprint' : '20m Biological Rest'}</span>
+            <span>{phase === 'work' ? '90m Focus' : '20m Rest'}</span>
           </div>
 
           <label className="flex items-center gap-2 cursor-pointer select-none">
@@ -302,7 +384,7 @@ export function NinetyMinTimer({ onSessionComplete, soundEnabled }: NinetyMinTim
               onChange={(e) => setAutoStartNext(e.target.checked)}
               className="w-3.5 h-3.5 rounded accent-[#7C6F5A]"
             />
-            <span>Auto-shift into break</span>
+            <span>Auto-shift</span>
           </label>
         </div>
       </div>
@@ -313,8 +395,8 @@ export function NinetyMinTimer({ onSessionComplete, soundEnabled }: NinetyMinTim
           <Activity className="w-4 h-4" />
         </div>
         <div>
-          <span className="font-semibold text-[#292524]">The Ultradian Rhythm: </span>
-          Our alertness naturally surges and dips in 90-minute waves. By stopping at 90 minutes before mental exhaustion sets in, you protect neural stamina and avoid the burnout slump of 4-hour non-stop cramming.
+          <span className="font-semibold text-[#1C1917]">Tip: </span>
+          Alertness peaks in 90-minute waves. Stopping at 90 minutes prevents fatigue and cognitive burnout.
         </div>
       </div>
     </div>

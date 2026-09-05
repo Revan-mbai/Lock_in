@@ -1,103 +1,190 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { ActiveTab, StudyMethodId, FocusSessionLog } from './types';
 import { Header } from './components/Header';
 import { HomePage } from './components/HomePage';
 import { MethodDetailView } from './components/MethodDetailView';
 import { StudyStatsModal } from './components/StudyStatsModal';
 import { OfflineIndicator } from './components/OfflineIndicator';
+import { loadActiveTab, saveActiveTab } from './utils/timerPersistence';
 
 const STORAGE_KEY_LOGS = 'study_methods_focus_logs_v1';
 
-export default function App() {
-  const [activeTab, setActiveTab] = useState<ActiveTab>('overview');
-  const [soundEnabled, setSoundEnabled] = useState(true);
-  const [isAmbientPlaying, setIsAmbientPlaying] = useState(false);
-  const [isZenMode, setIsZenMode] = useState(false);
-  const [isStatsOpen, setIsStatsOpen] = useState(false);
-  const [sessionLogs, setSessionLogs] = useState<FocusSessionLog[]>([]);
+// Session history is capped so a long-running install cannot grow the entry until it trips
+// the localStorage quota and silently stops saving.
+const MAX_SESSION_LOGS = 500;
 
-  // Load saved session history on initial mount
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY_LOGS);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          setSessionLogs(parsed);
-        }
-      }
-    } catch {
-      // Ignore parse failure
+const STORAGE_KEY_SOUND = 'study_methods_sound_enabled_v1';
+const STORAGE_KEY_ZEN = 'study_methods_zen_mode_v1';
+
+function loadBooleanPreference(key: string, fallback: boolean): boolean {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw === null ? fallback : raw === 'true';
+  } catch {
+    return fallback;
+  }
+}
+
+function readStoredLogs(): string | null {
+  try {
+    return localStorage.getItem(STORAGE_KEY_LOGS);
+  } catch {
+    return null;
+  }
+}
+
+function parseStoredLogs(raw: string | null): FocusSessionLog[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.slice(0, MAX_SESSION_LOGS) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveBooleanPreference(key: string, value: boolean) {
+  try {
+    localStorage.setItem(key, String(value));
+  } catch {
+    // Ignore quota
+  }
+}
+
+export default function App() {
+  const [activeTab, setActiveTab] = useState<ActiveTab>(() => {
+    const saved = loadActiveTab();
+    if (saved && ['overview', 'pomodoro', 'flowtime', 'ninety-min', 'time-boxing', 'fifty-two-seventeen'].includes(saved)) {
+      return saved as ActiveTab;
     }
-  }, []);
+    return 'overview';
+  });
+  // Persisted alongside activeTab — a muted user had to re-mute on every reload.
+  const [soundEnabled, setSoundEnabled] = useState(() => loadBooleanPreference(STORAGE_KEY_SOUND, true));
+  const [isAmbientPlaying, setIsAmbientPlaying] = useState(false);
+  const [isZenMode, setIsZenMode] = useState(() => loadBooleanPreference(STORAGE_KEY_ZEN, false));
+  const [isStatsOpen, setIsStatsOpen] = useState(false);
+  // Read during render, not from an effect. Child effects run before the parent's, so a
+  // timer that completed on this very mount recorded its session *before* a load effect
+  // here could run — and that effect then overwrote it with the stored value.
+  const [initialLogsRaw] = useState(readStoredLogs);
+  const [sessionLogs, setSessionLogs] = useState<FocusSessionLog[]>(() => parseStoredLogs(initialLogsRaw));
+  // The exact payload this tab last read or wrote, so a cross-tab sync does not bounce back
+  // out as a fresh write and start a write/notify loop between tabs.
+  const lastPersistedLogsRef = useRef<string | null>(initialLogsRaw);
+
+  // Persist outside the updater — a state updater must stay pure, and StrictMode invokes it
+  // twice.
+  const handleToggleSound = () => {
+    const next = !soundEnabled;
+    setSoundEnabled(next);
+    saveBooleanPreference(STORAGE_KEY_SOUND, next);
+  };
+
+  const handleToggleZenMode = () => {
+    const next = !isZenMode;
+    setIsZenMode(next);
+    saveBooleanPreference(STORAGE_KEY_ZEN, next);
+  };
+
+  const handleTabChange = (tab: ActiveTab) => {
+    setActiveTab(tab);
+    saveActiveTab(tab);
+  };
 
   const handleSessionComplete = (logData: Omit<FocusSessionLog, 'id' | 'completedAt'>) => {
     const newEntry: FocusSessionLog = {
       ...logData,
-      id: Math.random().toString(36).substring(2, 9),
+      // Date-prefixed so two sessions finishing in the same millisecond cannot collide and
+      // produce duplicate React keys.
+      id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`,
       completedAt: new Date().toISOString(),
     };
 
-    setSessionLogs((prev) => {
-      const updated = [newEntry, ...prev];
-      try {
-        localStorage.setItem(STORAGE_KEY_LOGS, JSON.stringify(updated));
-      } catch {
-        // Ignore quota
-      }
-      return updated;
-    });
+    // The updater stays pure: persisting from inside it wrote to localStorage twice per
+    // session under StrictMode.
+    setSessionLogs((prev) => [newEntry, ...prev].slice(0, MAX_SESSION_LOGS));
   };
 
-  const handleClearLogs = () => {
-    setSessionLogs([]);
+  // Persist history whenever it changes, including clears.
+  useEffect(() => {
+    const serialized = JSON.stringify(sessionLogs);
+    if (serialized === lastPersistedLogsRef.current) return;
+    lastPersistedLogsRef.current = serialized;
     try {
-      localStorage.removeItem(STORAGE_KEY_LOGS);
+      localStorage.setItem(STORAGE_KEY_LOGS, serialized);
     } catch {
-      // Ignore
+      // Ignore quota
     }
-  };
+  }, [sessionLogs]);
+
+  // History was read once on mount and then blind-overwritten, so a second tab silently
+  // destroyed whatever the first tab had recorded. Adopt other tabs' writes instead.
+  useEffect(() => {
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key !== STORAGE_KEY_LOGS) return;
+      const raw = event.newValue;
+      if (raw === lastPersistedLogsRef.current) return;
+      lastPersistedLogsRef.current = raw;
+      setSessionLogs(parseStoredLogs(raw));
+    };
+
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, []);
 
   const todayStr = new Date().toDateString();
+
+  // Clears only what the stats modal actually shows. It used to wipe the whole multi-day
+  // history, which the today-scoped modal never displayed, so a week of sessions could be
+  // destroyed by a button sitting above an empty list.
+  const handleClearLogs = () => {
+    setSessionLogs((prev) =>
+      prev.filter((log) => new Date(log.completedAt).toDateString() !== todayStr)
+    );
+  };
   const todayFocusMinutes = sessionLogs
     .filter((log) => log.phase === 'work' && new Date(log.completedAt).toDateString() === todayStr)
     .reduce((sum, log) => sum + log.durationMinutes, 0);
 
   const handleSelectMethod = (id: StudyMethodId) => {
-    setActiveTab(id);
+    handleTabChange(id);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   return (
-    <div className={`min-h-screen flex flex-col font-sans transition-colors duration-300 ${isZenMode ? 'bg-[#FAF8F5]' : 'bg-[#FAF8F5]'}`}>
+    <div className="min-h-screen flex flex-col font-sans transition-colors duration-300 bg-[#FAF8F5]">
       {/* Header with Navigation & Quick Utilities */}
       <Header
         activeTab={activeTab}
-        onTabChange={setActiveTab}
+        onTabChange={handleTabChange}
         soundEnabled={soundEnabled}
-        onToggleSound={() => setSoundEnabled(!soundEnabled)}
+        onToggleSound={handleToggleSound}
         isAmbientPlaying={isAmbientPlaying}
         onToggleAmbient={() => setIsAmbientPlaying(!isAmbientPlaying)}
         isZenMode={isZenMode}
-        onToggleZenMode={() => setIsZenMode(!isZenMode)}
+        onToggleZenMode={handleToggleZenMode}
         onOpenStats={() => setIsStatsOpen(true)}
         todayFocusMinutes={todayFocusMinutes}
       />
 
       {/* Main Content Area */}
       <main className="flex-1 px-4 sm:px-6 pt-6 sm:pt-10">
-        {activeTab === 'overview' ? (
+        <div className={activeTab === 'overview' ? 'block' : 'hidden'}>
           <HomePage onSelectMethod={handleSelectMethod} />
-        ) : (
-          <MethodDetailView
-            methodId={activeTab}
-            onBackToOverview={() => setActiveTab('overview')}
-            onSelectMethod={handleSelectMethod}
-            onSessionComplete={handleSessionComplete}
-            soundEnabled={soundEnabled}
-            isZenMode={isZenMode}
-          />
-        )}
+        </div>
+        {(['pomodoro', 'flowtime', 'ninety-min', 'time-boxing', 'fifty-two-seventeen'] as StudyMethodId[]).map((id) => (
+          <div key={id} className={activeTab === id ? 'block' : 'hidden'}>
+            <MethodDetailView
+              methodId={id}
+              onBackToOverview={() => handleTabChange('overview')}
+              onSelectMethod={handleSelectMethod}
+              onSessionComplete={handleSessionComplete}
+              soundEnabled={soundEnabled}
+              isZenMode={isZenMode}
+            />
+          </div>
+        ))}
       </main>
 
       {/* Minimal Warm Footer (hidden in Zen mode) */}
@@ -109,7 +196,7 @@ export default function App() {
             </div>
             <div className="flex items-center gap-4 text-[#78716C]">
               <button
-                onClick={() => setActiveTab('overview')}
+                onClick={() => handleTabChange('overview')}
                 className="hover:text-[#1C1917] transition-colors"
               >
                 All Methods

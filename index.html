@@ -1,6 +1,8 @@
 <!doctype html>
 <html lang="en">
   <head>
+    <!-- The vite console-error shield is injected by hmrCompatPlugin in vite.config.ts.
+         Do not inline a second copy here — it would run twice on every page load. -->
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Lock In - Focus & Break Suite</title>
@@ -17,7 +19,9 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
     <link rel="icon" type="image/png" sizes="192x192" href="/pwa-192x192.png" />
-    <link rel="manifest" href="/manifest.json" />
+    <!-- The web app manifest link is injected by vite-plugin-pwa (/manifest.webmanifest).
+         Do not add a second <link rel="manifest"> here — browsers honour only the first,
+         which would shadow the generated one. -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap" rel="stylesheet">

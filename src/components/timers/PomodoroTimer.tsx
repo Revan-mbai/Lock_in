@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
-import { Play, Pause, RotateCcw, SkipForward, CheckCircle2, Volume2, Sparkles, Settings2 } from 'lucide-react';
+import { Play, Pause, RotateCcw, SkipForward, CheckCircle2, Sparkles, Settings2 } from 'lucide-react';
 import { formatTime } from '../../utils/formatters';
 import { playFocusCompleteChime, playBreakCompleteChime } from '../../utils/audio';
 import { FocusSessionLog } from '../../types';
+import { loadPomodoroState, savePomodoroState, MAX_LIVE_GAP_SECONDS } from '../../utils/timerPersistence';
 
 interface PomodoroTimerProps {
   onSessionComplete: (log: Omit<FocusSessionLog, 'id' | 'completedAt'>) => void;
@@ -10,22 +11,76 @@ interface PomodoroTimerProps {
 }
 
 export function PomodoroTimer({ onSessionComplete, soundEnabled }: PomodoroTimerProps) {
-  // Preset durations (in minutes)
-  const [workDuration, setWorkDuration] = useState(25);
-  const [shortBreakDuration, setShortBreakDuration] = useState(5);
-  const [longBreakDuration, setLongBreakDuration] = useState(15);
-  const [cyclesBeforeLongBreak, setCyclesBeforeLongBreak] = useState(4);
+  // Load saved state once on mount. Calling this during every render re-parsed localStorage
+  // on every tick, for every mounted timer.
+  const [saved] = useState(loadPomodoroState);
 
-  const [phase, setPhase] = useState<'work' | 'shortBreak' | 'longBreak'>('work');
-  const [timeLeft, setTimeLeft] = useState(25 * 60);
-  const [isRunning, setIsRunning] = useState(false);
-  const [completedCycles, setCompletedCycles] = useState(0);
-  const [taskSubject, setTaskSubject] = useState('');
-  const [autoStartNext, setAutoStartNext] = useState(true);
+  // Preset durations (in minutes)
+  const [workDuration, setWorkDuration] = useState(() => saved?.workDuration ?? 25);
+  const [shortBreakDuration, setShortBreakDuration] = useState(() => saved?.shortBreakDuration ?? 5);
+  // No UI changes these two; they are read from saved state and otherwise fixed.
+  const [longBreakDuration] = useState(() => saved?.longBreakDuration ?? 15);
+  const [cyclesBeforeLongBreak] = useState(() => saved?.cyclesBeforeLongBreak ?? 4);
+
+  const [phase, setPhase] = useState<'work' | 'shortBreak' | 'longBreak'>(() => saved?.phase ?? 'work');
+  const [timeLeft, setTimeLeft] = useState(() => saved?.timeLeft ?? 25 * 60);
+  const [isRunning, setIsRunning] = useState(() => saved?.isRunning ?? false);
+  const [completedCycles, setCompletedCycles] = useState(() => saved?.completedCycles ?? 0);
+  const [taskSubject, setTaskSubject] = useState(() => saved?.taskSubject ?? '');
+  const [autoStartNext, setAutoStartNext] = useState(() => saved?.autoStartNext ?? true);
   const [showSettings, setShowSettings] = useState(false);
   const [transitionNotification, setTransitionNotification] = useState<string | null>(null);
 
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastTickRef = useRef<number>(Date.now());
+  const notificationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Guards the phase transition so a single expiry can only fire it once. Starts false: the
+  // loader only returns isRunning with timeLeft at 0 when the block really did run out while
+  // the app was briefly away, and that session still deserves to be logged.
+  const transitionFiredRef = useRef(false);
+
+  // Show a transition banner, replacing any banner still counting down.
+  const showTransitionNotification = (message: string) => {
+    setTransitionNotification(message);
+    if (notificationTimeoutRef.current) clearTimeout(notificationTimeoutRef.current);
+    notificationTimeoutRef.current = setTimeout(() => {
+      setTransitionNotification(null);
+      notificationTimeoutRef.current = null;
+    }, 4000);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (notificationTimeoutRef.current) clearTimeout(notificationTimeoutRef.current);
+    };
+  }, []);
+
+  // Save changes to localStorage
+  useEffect(() => {
+    savePomodoroState({
+      workDuration,
+      shortBreakDuration,
+      longBreakDuration,
+      cyclesBeforeLongBreak,
+      phase,
+      timeLeft,
+      isRunning,
+      completedCycles,
+      taskSubject,
+      autoStartNext,
+    });
+  }, [
+    workDuration,
+    shortBreakDuration,
+    longBreakDuration,
+    cyclesBeforeLongBreak,
+    phase,
+    timeLeft,
+    isRunning,
+    completedCycles,
+    taskSubject,
+    autoStartNext,
+  ]);
 
   // Total duration of current phase in seconds
   const totalPhaseSeconds = phase === 'work' 
@@ -36,32 +91,42 @@ export function PomodoroTimer({ onSessionComplete, soundEnabled }: PomodoroTimer
 
   const progressPercent = Math.min(100, Math.max(0, ((totalPhaseSeconds - timeLeft) / totalPhaseSeconds) * 100));
 
-  // Switch phase logic
-  const handlePhaseTransition = (fromPhase: 'work' | 'shortBreak' | 'longBreak') => {
+  // Switch phase logic. `elapsedSeconds` is the time actually spent in the phase, so that
+  // skipping early logs what was really studied instead of the full configured block.
+  const handlePhaseTransition = (
+    fromPhase: 'work' | 'shortBreak' | 'longBreak',
+    elapsedSeconds: number
+  ) => {
     if (fromPhase === 'work') {
-      const newCycles = completedCycles + 1;
-      setCompletedCycles(newCycles);
+      const focusedMinutes = Math.round(elapsedSeconds / 60);
+      // Skipping a focus phase you never actually started logs nothing, so it must not tick a
+      // cycle off either — the dots and the long-break schedule would drift from reality.
+      const countsAsCycle = focusedMinutes >= 1;
+      const newCycles = countsAsCycle ? completedCycles + 1 : completedCycles;
 
-      onSessionComplete({
-        methodId: 'pomodoro',
-        methodName: 'Pomodoro Technique',
-        taskTitle: taskSubject.trim() || 'Deep Study Session',
-        durationMinutes: workDuration,
-        phase: 'work',
-      });
+      if (countsAsCycle) {
+        setCompletedCycles(newCycles);
+        onSessionComplete({
+          methodId: 'pomodoro',
+          methodName: 'Pomodoro Technique',
+          taskTitle: taskSubject.trim() || 'Deep Study Session',
+          durationMinutes: focusedMinutes,
+          phase: 'work',
+        });
+      }
 
       if (soundEnabled) playFocusCompleteChime();
 
-      const nextIsLongBreak = newCycles % cyclesBeforeLongBreak === 0;
+      const nextIsLongBreak = countsAsCycle && newCycles % cyclesBeforeLongBreak === 0;
       const nextPhase = nextIsLongBreak ? 'longBreak' : 'shortBreak';
       const nextDuration = nextIsLongBreak ? longBreakDuration : shortBreakDuration;
 
       setPhase(nextPhase);
       setTimeLeft(nextDuration * 60);
-      setTransitionNotification(
+      showTransitionNotification(
         nextIsLongBreak
-          ? `4 cycles reached! Starting ${longBreakDuration}-min restorative long break.`
-          : `Work sprint complete! Shifting directly into ${shortBreakDuration}-min break.`
+          ? `${cyclesBeforeLongBreak} cycles done. ${longBreakDuration}m long break started.`
+          : `Focus complete. ${shortBreakDuration}m break started.`
       );
 
       if (autoStartNext) {
@@ -75,7 +140,7 @@ export function PomodoroTimer({ onSessionComplete, soundEnabled }: PomodoroTimer
 
       setPhase('work');
       setTimeLeft(workDuration * 60);
-      setTransitionNotification('Break over. Refocused and starting your next 25-min study sprint.');
+      showTransitionNotification(`Break over. ${workDuration}m focus started.`);
 
       if (autoStartNext) {
         setIsRunning(true);
@@ -83,34 +148,66 @@ export function PomodoroTimer({ onSessionComplete, soundEnabled }: PomodoroTimer
         setIsRunning(false);
       }
     }
-
-    setTimeout(() => {
-      setTransitionNotification(null);
-    }, 6000);
   };
 
-  // Main countdown effect
+  // Main countdown effect. The updater stays pure — scheduling the phase transition from
+  // inside it made React run the transition twice under StrictMode, which logged every
+  // completed session twice.
   useEffect(() => {
-    if (isRunning) {
-      timerRef.current = setInterval(() => {
-        setTimeLeft((prev) => {
-          if (prev <= 1) {
-            handlePhaseTransition(phase);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    } else if (timerRef.current) {
-      clearInterval(timerRef.current);
-    }
+    if (!isRunning) return;
+
+    lastTickRef.current = Date.now();
+
+    const tick = () => {
+      // Advance by whole seconds and carry the sub-second remainder. Rounding (and flooring
+      // at 1) meant the extra visibilitychange tick could charge a full second for a few
+      // milliseconds, so the countdown ran fast on every tab switch.
+      const delta = Math.floor((Date.now() - lastTickRef.current) / 1000);
+      if (delta <= 0) return;
+      lastTickRef.current += delta * 1000;
+      if (delta > MAX_LIVE_GAP_SECONDS) {
+        // Far more time passed than any block can span, so the machine was asleep rather
+        // than the tab merely backgrounded. Pause instead of banking a session.
+        setIsRunning(false);
+        return;
+      }
+      setTimeLeft((prev) => Math.max(0, prev - delta));
+    };
+
+    timerRef.current = setInterval(tick, 1000);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        tick();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
+      timerRef.current = null;
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [isRunning, phase, completedCycles, workDuration, shortBreakDuration, longBreakDuration, autoStartNext]);
+  }, [isRunning]);
+
+  // Fire the phase transition once the countdown reaches zero. Running it here rather than
+  // inside the tick means it always sees the current task name, sound setting and durations.
+  useEffect(() => {
+    if (timeLeft > 0) {
+      transitionFiredRef.current = false;
+      return;
+    }
+    if (!isRunning || transitionFiredRef.current) return;
+    transitionFiredRef.current = true;
+    handlePhaseTransition(phase, totalPhaseSeconds);
+  }, [timeLeft, isRunning, phase, totalPhaseSeconds]);
 
   const handleStartPause = () => {
+    // Pressing Play on an exhausted block starts the next one rather than re-completing the
+    // spent one and logging a phantom full-length session.
+    if (!isRunning && timeLeft <= 0) {
+      setTimeLeft(totalPhaseSeconds);
+    }
     setIsRunning(!isRunning);
   };
 
@@ -125,7 +222,13 @@ export function PomodoroTimer({ onSessionComplete, soundEnabled }: PomodoroTimer
   };
 
   const handleSkipPhase = () => {
-    handlePhaseTransition(phase);
+    // Two clicks dispatched before React re-renders share this closure, so without a guard a
+    // fast double-click credited the same block twice. transitionFiredRef is reset by the
+    // zero-detection effect as soon as the next phase's countdown is in place.
+    if (transitionFiredRef.current) return;
+    transitionFiredRef.current = true;
+    // Credit only the time actually spent, not the whole configured block.
+    handlePhaseTransition(phase, totalPhaseSeconds - timeLeft);
   };
 
   const handleApplyPreset = (work: number, sBreak: number) => {
@@ -181,7 +284,7 @@ export function PomodoroTimer({ onSessionComplete, soundEnabled }: PomodoroTimer
                 : 'text-[#78716C] hover:text-[#292524] bg-[#F7F5F0]'
             }`}
           >
-            Study Focus ({workDuration}m)
+            Focus ({workDuration}m)
           </button>
           <button
             id="pomodoro-phase-short-tab"
@@ -198,7 +301,7 @@ export function PomodoroTimer({ onSessionComplete, soundEnabled }: PomodoroTimer
                 : 'text-[#78716C] hover:text-[#292524] bg-[#F7F5F0]'
             }`}
           >
-            Short Break ({shortBreakDuration}m)
+            Break ({shortBreakDuration}m)
           </button>
           <button
             id="pomodoro-phase-long-tab"
@@ -222,7 +325,7 @@ export function PomodoroTimer({ onSessionComplete, soundEnabled }: PomodoroTimer
         {/* Task Focus Input */}
         <div className="max-w-md mx-auto mb-8">
           <label htmlFor="pomodoro-task-input" className="block text-center text-xs tracking-wider uppercase text-[#78716C] mb-2 font-medium">
-            {phase === 'work' ? 'Current Focus Intention' : 'Resting State'}
+            {phase === 'work' ? 'Task' : 'Break'}
           </label>
           {phase === 'work' ? (
             <input
@@ -230,12 +333,12 @@ export function PomodoroTimer({ onSessionComplete, soundEnabled }: PomodoroTimer
               type="text"
               value={taskSubject}
               onChange={(e) => setTaskSubject(e.target.value)}
-              placeholder="e.g., Organic chemistry chapter 4 problem set..."
+              placeholder="e.g. Chapter 4 problem set..."
               className="w-full text-center px-4 py-2.5 rounded-xl border border-[#E7E3DC] bg-[#FAF8F5] text-sm text-[#292524] placeholder-[#A8A29E] focus:outline-none focus:border-[#C86D51] transition-colors"
             />
           ) : (
             <div className="text-center text-sm font-serif italic text-[#58705C]">
-              Step away from screen &bull; Stretch shoulders &bull; Hydrate &bull; Deep breaths
+              Step away, stretch, and hydrate.
             </div>
           )}
         </div>
@@ -276,7 +379,7 @@ export function PomodoroTimer({ onSessionComplete, soundEnabled }: PomodoroTimer
                 {formatTime(timeLeft)}
               </span>
               <span className="text-xs font-medium uppercase tracking-widest text-[#78716C] mt-2">
-                {phase === 'work' ? 'Deep Work' : phase === 'shortBreak' ? 'Short Recovery' : 'Extended Rest'}
+                {phase === 'work' ? 'Focus' : phase === 'shortBreak' ? 'Break' : 'Long Break'}
               </span>
               <span className="text-[11px] text-[#A8A29E] mt-1">
                 {autoStartNext ? 'Auto-shifts into break' : 'Manual shift'}
@@ -313,7 +416,7 @@ export function PomodoroTimer({ onSessionComplete, soundEnabled }: PomodoroTimer
             ) : (
               <>
                 <Play className="w-4 h-4 fill-current ml-0.5" />
-                <span>{timeLeft < totalPhaseSeconds ? 'Resume' : 'Start Focus'}</span>
+                <span>{timeLeft < totalPhaseSeconds ? 'Resume' : 'Start'}</span>
               </>
             )}
           </button>
@@ -344,7 +447,7 @@ export function PomodoroTimer({ onSessionComplete, soundEnabled }: PomodoroTimer
                 />
               ))}
             </div>
-            <span className="text-[#A8A29E] ml-1">({completedCycles} finished)</span>
+            <span className="text-[#A8A29E] ml-1">({completedCycles} done)</span>
           </div>
 
           <div className="flex items-center gap-4">
@@ -356,7 +459,7 @@ export function PomodoroTimer({ onSessionComplete, soundEnabled }: PomodoroTimer
                 onChange={(e) => setAutoStartNext(e.target.checked)}
                 className="w-3.5 h-3.5 rounded accent-[#C86D51]"
               />
-              <span>Auto-shift into break</span>
+              <span>Auto-shift</span>
             </label>
 
             <button
@@ -365,7 +468,7 @@ export function PomodoroTimer({ onSessionComplete, soundEnabled }: PomodoroTimer
               className="flex items-center gap-1 hover:text-[#292524] transition-colors"
             >
               <Settings2 className="w-3.5 h-3.5" />
-              <span>Intervals</span>
+              <span>Presets</span>
             </button>
           </div>
         </div>
@@ -373,7 +476,7 @@ export function PomodoroTimer({ onSessionComplete, soundEnabled }: PomodoroTimer
         {/* Interval Settings Collapsible */}
         {showSettings && (
           <div id="pomodoro-settings-panel" className="mt-4 p-4 rounded-xl bg-[#FAF8F5] border border-[#E7E3DC] text-xs space-y-3">
-            <p className="font-medium text-[#292524]">Select Interval Preset or Custom Time:</p>
+            <p className="font-medium text-[#292524]">Select preset:</p>
             <div className="flex flex-wrap gap-2">
               <button
                 id="preset-25-5-btn"
@@ -382,7 +485,7 @@ export function PomodoroTimer({ onSessionComplete, soundEnabled }: PomodoroTimer
                   workDuration === 25 ? 'border-[#C86D51] bg-[#FAF3F0] text-[#C86D51] font-semibold' : 'border-[#E7E3DC] bg-white'
                 }`}
               >
-                Standard (25m / 5m)
+                25m / 5m
               </button>
               <button
                 id="preset-50-10-btn"
@@ -391,7 +494,7 @@ export function PomodoroTimer({ onSessionComplete, soundEnabled }: PomodoroTimer
                   workDuration === 50 ? 'border-[#C86D51] bg-[#FAF3F0] text-[#C86D51] font-semibold' : 'border-[#E7E3DC] bg-white'
                 }`}
               >
-                Extended (50m / 10m)
+                50m / 10m
               </button>
               <button
                 id="preset-15-3-btn"
@@ -400,7 +503,7 @@ export function PomodoroTimer({ onSessionComplete, soundEnabled }: PomodoroTimer
                   workDuration === 15 ? 'border-[#C86D51] bg-[#FAF3F0] text-[#C86D51] font-semibold' : 'border-[#E7E3DC] bg-white'
                 }`}
               >
-                Micro Sprint (15m / 3m)
+                15m / 3m
               </button>
             </div>
           </div>
@@ -413,8 +516,8 @@ export function PomodoroTimer({ onSessionComplete, soundEnabled }: PomodoroTimer
           <CheckCircle2 className="w-4 h-4" />
         </div>
         <div>
-          <span className="font-semibold text-[#292524]">Pomodoro Best Practice: </span>
-          When the study timer hits 0, don't check social media or stay in your chair. Look out a window at least 20 feet away to relax your ciliary eye muscles, and stretch your spine.
+          <span className="font-semibold text-[#1C1917]">Tip: </span>
+          When the timer rings, look 20 feet away to relax your eyes, stretch, and hydrate.
         </div>
       </div>
     </div>

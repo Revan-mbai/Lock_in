@@ -1,7 +1,10 @@
-import { ActiveTab } from '../types';
+import { useState, useEffect } from 'react';
+import { ActiveTab, StudyMethodId } from '../types';
 import { AmbientSoundPlayer } from './AmbientSoundPlayer';
 import { PWAInstallButton } from './PWAInstallButton';
-import { Bell, BellOff, Maximize2, Minimize2, BarChart2, BookOpen, Layers } from 'lucide-react';
+import { Bell, BellOff, Maximize2, Minimize2, BarChart2 } from 'lucide-react';
+import { getTimerSummaries } from '../utils/timerPersistence';
+import { formatTime } from '../utils/formatters';
 
 interface HeaderProps {
   activeTab: ActiveTab;
@@ -28,13 +31,27 @@ export function Header({
   onOpenStats,
   todayFocusMinutes,
 }: HeaderProps) {
+  const [timerSummaries, setTimerSummaries] = useState(getTimerSummaries);
+
+  useEffect(() => {
+    const update = () => setTimerSummaries(getTimerSummaries());
+    window.addEventListener('study_timers_changed', update);
+    window.addEventListener('storage', update);
+    const interval = setInterval(update, 1000);
+    return () => {
+      window.removeEventListener('study_timers_changed', update);
+      window.removeEventListener('storage', update);
+      clearInterval(interval);
+    };
+  }, []);
+
   const tabs: { id: ActiveTab; label: string }[] = [
-    { id: 'overview', label: 'All Methods' },
+    { id: 'overview', label: 'All' },
     { id: 'pomodoro', label: 'Pomodoro' },
     { id: 'flowtime', label: 'Flowtime' },
-    { id: 'ninety-min', label: '90-Min Cycle' },
+    { id: 'ninety-min', label: '90-Min' },
     { id: 'time-boxing', label: 'Time Boxing' },
-    { id: 'fifty-two-seventeen', label: '52/17 Rule' },
+    { id: 'fifty-two-seventeen', label: '52/17' },
   ];
 
   if (isZenMode) {
@@ -43,7 +60,7 @@ export function Header({
         <button
           id="exit-zen-mode-btn"
           onClick={onToggleZenMode}
-          title="Exit Zen / Distraction-Free Mode"
+          title="Exit Zen Mode"
           className="p-2.5 rounded-full bg-white/80 hover:bg-white text-[#57534E] hover:text-[#1C1917] border border-[#E7E3DC] shadow-xs backdrop-blur-xs transition-colors"
         >
           <Minimize2 className="w-4 h-4" />
@@ -67,7 +84,7 @@ export function Header({
                 Lock In
               </div>
               <div className="text-[10px] text-[#8C827A] tracking-wider uppercase mt-0.5">
-                Focus & Break Suite
+                Focus Timers
               </div>
             </div>
           </button>
@@ -76,18 +93,27 @@ export function Header({
           <nav className="hidden md:flex items-center gap-1 bg-[#F0ECE4]/70 p-1 rounded-xl border border-[#E5E0D6]">
             {tabs.map((tab) => {
               const isActive = activeTab === tab.id;
+              const isTimerRunning = tab.id !== 'overview' && timerSummaries[tab.id as StudyMethodId]?.isRunning;
+              const remainingSec = (tab.id !== 'overview' ? timerSummaries[tab.id as StudyMethodId]?.remainingSeconds : 0) ?? 0;
+
               return (
                 <button
                   key={tab.id}
                   id={`nav-tab-${tab.id}`}
                   onClick={() => onTabChange(tab.id)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all inline-flex items-center gap-1.5 ${
                     isActive
                       ? 'bg-[#FFFFFF] text-[#1C1917] shadow-xs'
                       : 'text-[#6B655F] hover:text-[#1C1917] hover:bg-[#FAF8F5]/50'
                   }`}
                 >
-                  {tab.label}
+                  <span>{tab.label}</span>
+                  {isTimerRunning && (
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-mono bg-[#E2EBE4] text-[#2D5A3C] font-semibold border border-[#C5D8C9]">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#3D7A52] animate-pulse" />
+                      {formatTime(remainingSec)}
+                    </span>
+                  )}
                 </button>
               );
             })}
@@ -108,7 +134,7 @@ export function Header({
             <button
               id="header-sound-chime-toggle"
               onClick={onToggleSound}
-              title={soundEnabled ? 'Chime sound active' : 'Chime sound muted'}
+              title={soundEnabled ? 'Sound on' : 'Muted'}
               className={`p-2 rounded-xl text-xs font-medium transition-colors ${
                 soundEnabled
                   ? 'text-[#57534E] hover:text-[#1C1917] hover:bg-[#F2EFE9]'
@@ -122,7 +148,7 @@ export function Header({
             <button
               id="open-stats-modal-btn"
               onClick={onOpenStats}
-              title="View today's study stats"
+              title="Today's stats"
               className="p-2 rounded-xl text-[#57534E] hover:text-[#1C1917] hover:bg-[#F2EFE9] flex items-center gap-1.5 transition-colors"
             >
               <BarChart2 className="w-4 h-4" />
@@ -137,7 +163,7 @@ export function Header({
             <button
               id="enter-zen-mode-btn"
               onClick={onToggleZenMode}
-              title="Distraction-Free Zen Mode"
+              title="Zen Mode"
               className="p-2 rounded-xl text-[#57534E] hover:text-[#1C1917] hover:bg-[#F2EFE9] transition-colors"
             >
               <Maximize2 className="w-4 h-4" />
@@ -149,17 +175,26 @@ export function Header({
         <div className="md:hidden flex items-center gap-1 overflow-x-auto pb-2.5 pt-1 scrollbar-none">
           {tabs.map((tab) => {
             const isActive = activeTab === tab.id;
+            const isTimerRunning = tab.id !== 'overview' && timerSummaries[tab.id as StudyMethodId]?.isRunning;
+            const remainingSec = (tab.id !== 'overview' ? timerSummaries[tab.id as StudyMethodId]?.remainingSeconds : 0) ?? 0;
+
             return (
               <button
                 key={tab.id}
                 onClick={() => onTabChange(tab.id)}
-                className={`px-3 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
+                className={`px-3 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-all inline-flex items-center gap-1.5 ${
                   isActive
                     ? 'bg-[#1C1917] text-[#FAF8F5]'
                     : 'bg-[#F2EFE9] text-[#6B655F]'
                 }`}
               >
-                {tab.label}
+                <span>{tab.label}</span>
+                {isTimerRunning && (
+                  <span className="inline-flex items-center gap-1 px-1 py-0.2 rounded text-[10px] font-mono bg-emerald-700 text-emerald-100">
+                    <span className="w-1 h-1 rounded-full bg-emerald-300 animate-pulse" />
+                    {formatTime(remainingSec)}
+                  </span>
+                )}
               </button>
             );
           })}

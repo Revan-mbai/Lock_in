@@ -18,10 +18,13 @@ export function usePWAInstall() {
       document.referrer.includes('android-app://');
     setIsInstalled(isStandalone);
 
-    // Detect iOS devices
+    // Detect iOS devices. iPadOS 13+ reports a desktop Safari user agent, so a plain
+    // /ipad/ test misses every modern iPad; those are identified by a Mac UA that also
+    // reports touch points.
     const userAgent = window.navigator.userAgent.toLowerCase();
-    const isIOSDevice = /iphone|ipad|ipod/.test(userAgent);
-    setIsIOS(isIOSDevice);
+    const isIPadOS =
+      /macintosh/.test(userAgent) && typeof navigator.maxTouchPoints === 'number' && navigator.maxTouchPoints > 1;
+    setIsIOS(/iphone|ipad|ipod/.test(userAgent) || isIPadOS);
 
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
@@ -44,12 +47,23 @@ export function usePWAInstall() {
 
   const install = async () => {
     if (!deferredPrompt) return false;
-    await deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') {
-      setIsInstalled(true);
-      setDeferredPrompt(null);
-      return true;
+
+    // A beforeinstallprompt event can only be prompted once — reusing it throws
+    // InvalidStateError. Clear it whatever the user chooses, so a dismissed prompt hides
+    // the button (the browser fires a fresh event when it is willing to ask again) instead
+    // of leaving a button that throws on the next click.
+    const prompt = deferredPrompt;
+    setDeferredPrompt(null);
+
+    try {
+      await prompt.prompt();
+      const { outcome } = await prompt.userChoice;
+      if (outcome === 'accepted') {
+        setIsInstalled(true);
+        return true;
+      }
+    } catch {
+      // The prompt was already consumed or was rejected by the browser.
     }
     return false;
   };

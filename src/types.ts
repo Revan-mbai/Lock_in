@@ -14,6 +14,8 @@ export interface StudyMethodInfo {
   description: string;
   howItWorks: string[];
   scienceNote: string;
+  /** Whether the timer advances into the break by itself; Flowtime waits for the user. */
+  autoShifts: boolean;
   accentColor: string; // Tailwind color token or hex
 }
 

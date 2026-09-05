@@ -70,7 +70,7 @@ export function PWAInstallButton() {
                     Install Lock In
                   </h3>
                   <p className="text-[11px] text-[#8C827A]">
-                    Full-screen experience & offline focus
+                    Full-screen offline focus app.
                   </p>
                 </div>
               </div>
@@ -83,61 +83,21 @@ export function PWAInstallButton() {
             </div>
 
             {isIOS ? (
-              <div className="space-y-3 text-xs text-[#57534E]">
-                <p className="font-medium text-[#1C1917]">To install on iPhone or iPad:</p>
-                <ol className="space-y-2.5 pl-1">
-                  <li className="flex items-start gap-2.5">
-                    <span className="w-5 h-5 rounded-full bg-[#FAF5EE] text-[#B45309] font-medium flex items-center justify-center shrink-0 text-[10px]">
-                      1
-                    </span>
-                    <span className="leading-snug">
-                      Tap the <strong className="text-[#1C1917]">Share</strong> icon <Share2 className="w-3.5 h-3.5 inline mx-0.5 text-[#2563EB]" /> in Safari's bottom toolbar.
-                    </span>
-                  </li>
-                  <li className="flex items-start gap-2.5">
-                    <span className="w-5 h-5 rounded-full bg-[#FAF5EE] text-[#B45309] font-medium flex items-center justify-center shrink-0 text-[10px]">
-                      2
-                    </span>
-                    <span className="leading-snug">
-                      Scroll down and tap <strong className="text-[#1C1917]">Add to Home Screen</strong> <PlusSquare className="w-3.5 h-3.5 inline mx-0.5" />.
-                    </span>
-                  </li>
-                  <li className="flex items-start gap-2.5">
-                    <span className="w-5 h-5 rounded-full bg-[#FAF5EE] text-[#B45309] font-medium flex items-center justify-center shrink-0 text-[10px]">
-                      3
-                    </span>
-                    <span className="leading-snug">
-                      Tap <strong className="text-[#1C1917]">Add</strong> in the top-right corner.
-                    </span>
-                  </li>
-                </ol>
+              <div className="p-3 rounded-xl bg-[#FAF8F5] border border-[#E7E3DC] text-xs text-[#57534E]">
+                <p className="leading-snug">
+                  Tap <strong className="text-[#1C1917]">Share</strong> <Share2 className="w-3.5 h-3.5 inline mx-0.5 text-[#2563EB]" /> in Safari, then tap <strong className="text-[#1C1917]">Add to Home Screen</strong> <PlusSquare className="w-3.5 h-3.5 inline mx-0.5" />.
+                </p>
               </div>
             ) : (
-              <div className="space-y-3 text-xs text-[#57534E]">
-                <p className="font-medium text-[#1C1917]">To install on Android or Desktop:</p>
-                <ol className="space-y-2.5 pl-1">
-                  <li className="flex items-start gap-2.5">
-                    <span className="w-5 h-5 rounded-full bg-[#FAF5EE] text-[#B45309] font-medium flex items-center justify-center shrink-0 text-[10px]">
-                      1
-                    </span>
-                    <span className="leading-snug">
-                      Tap the browser menu <strong className="text-[#1C1917]">&#8942;</strong> (three dots) in Chrome or Edge.
-                    </span>
-                  </li>
-                  <li className="flex items-start gap-2.5">
-                    <span className="w-5 h-5 rounded-full bg-[#FAF5EE] text-[#B45309] font-medium flex items-center justify-center shrink-0 text-[10px]">
-                      2
-                    </span>
-                    <span className="leading-snug">
-                      Select <strong className="text-[#1C1917]">Install app</strong> or <strong className="text-[#1C1917]">Add to Home Screen</strong>.
-                    </span>
-                  </li>
-                </ol>
+              <div className="p-3 rounded-xl bg-[#FAF8F5] border border-[#E7E3DC] text-xs text-[#57534E]">
+                <p className="leading-snug">
+                  Open the browser menu <strong className="text-[#1C1917]">&#8942;</strong> and select <strong className="text-[#1C1917]">Install App</strong>.
+                </p>
               </div>
             )}
 
             <div className="pt-2 border-t border-[#F0ECE4] flex items-center justify-between text-[11px] text-[#8C827A]">
-              <span>Works 100% offline &bull; No app store required</span>
+              <span>Runs offline without an app store.</span>
               <button
                 onClick={() => setShowGuide(false)}
                 className="px-3 py-1 rounded-lg bg-[#FAF8F5] text-[#1C1917] hover:bg-[#EAE5DC] font-medium text-xs"

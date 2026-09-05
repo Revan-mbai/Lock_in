@@ -3,6 +3,16 @@ import { Play, Pause, Coffee, RotateCcw, Sparkles, Brain, Clock, ArrowRight } fr
 import { formatTime, calculateFlowtimeBreakMinutes } from '../../utils/formatters';
 import { playFocusCompleteChime, playBreakCompleteChime } from '../../utils/audio';
 import { FocusSessionLog } from '../../types';
+import { loadFlowtimeState, saveFlowtimeState, MAX_LIVE_GAP_SECONDS, MAX_FLOW_GAP_SECONDS } from '../../utils/timerPersistence';
+
+// Kept in lockstep with calculateFlowtimeBreakMinutes in ../../utils/formatters.
+const REST_TIERS: { label: string; fromMinutes: number; toMinutes: number | null; breakMinutes: number }[] = [
+  { label: '< 20m flow', fromMinutes: 0, toMinutes: 20, breakMinutes: 5 },
+  { label: '20–45m flow', fromMinutes: 20, toMinutes: 45, breakMinutes: 8 },
+  { label: '45–75m flow', fromMinutes: 45, toMinutes: 75, breakMinutes: 10 },
+  { label: '75–100m flow', fromMinutes: 75, toMinutes: 100, breakMinutes: 15 },
+  { label: '100m+ flow', fromMinutes: 100, toMinutes: null, breakMinutes: 20 },
+];
 
 interface FlowtimeTimerProps {
   onSessionComplete: (log: Omit<FocusSessionLog, 'id' | 'completedAt'>) => void;
@@ -10,67 +20,182 @@ interface FlowtimeTimerProps {
 }
 
 export function FlowtimeTimer({ onSessionComplete, soundEnabled }: FlowtimeTimerProps) {
-  // Mode: 'flow' (counting up) or 'break' (counting down)
-  const [mode, setMode] = useState<'flow' | 'break'>('flow');
-  const [elapsedFlowSeconds, setElapsedFlowSeconds] = useState(0);
-  const [breakTimeLeft, setBreakTimeLeft] = useState(0);
-  const [breakInitialSeconds, setBreakInitialSeconds] = useState(0);
-  const [isFlowing, setIsFlowing] = useState(false);
-  const [isBreakRunning, setIsBreakRunning] = useState(false);
+  // Load saved state once on mount rather than re-parsing localStorage on every render.
+  const [saved] = useState(loadFlowtimeState);
 
-  const [taskSubject, setTaskSubject] = useState('');
-  const [sessionRecords, setSessionRecords] = useState<{ id: string; minutes: number; breakMins: number; timestamp: string }[]>([]);
+  // Mode: 'flow' (counting up) or 'break' (counting down)
+  const [mode, setMode] = useState<'flow' | 'break'>(() => saved?.mode ?? 'flow');
+  const [elapsedFlowSeconds, setElapsedFlowSeconds] = useState(() => saved?.elapsedFlowSeconds ?? 0);
+  const [breakTimeLeft, setBreakTimeLeft] = useState(() => saved?.breakTimeLeft ?? 0);
+  const [breakInitialSeconds, setBreakInitialSeconds] = useState(() => saved?.breakInitialSeconds ?? 0);
+  const [isFlowing, setIsFlowing] = useState(() => saved?.isFlowing ?? false);
+  const [isBreakRunning, setIsBreakRunning] = useState(() => saved?.isBreakRunning ?? false);
+
+  const [taskSubject, setTaskSubject] = useState(() => saved?.taskSubject ?? '');
+  const [sessionRecords, setSessionRecords] = useState<{ id: string; minutes: number; breakMins: number; timestamp: string; dateKey?: string }[]>(() => saved?.sessionRecords ?? []);
   const [transitionNotification, setTransitionNotification] = useState<string | null>(null);
 
-  const flowTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const breakTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const flowTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const breakTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastFlowTickRef = useRef<number>(Date.now());
+  const lastBreakTickRef = useRef<number>(Date.now());
+  const notificationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Guards the break-complete transition so a single expiry can only fire it once.
+  const breakEndedRef = useRef(false);
+  // Guards ending a flow block: two clicks dispatched before React re-renders share the same
+  // closure, so a fast double-click on "Break" logged the same flow session twice.
+  const flowEndFiredRef = useRef(false);
+
+  // Show a transition banner, replacing any banner still counting down.
+  const showTransitionNotification = (message: string) => {
+    setTransitionNotification(message);
+    if (notificationTimeoutRef.current) clearTimeout(notificationTimeoutRef.current);
+    notificationTimeoutRef.current = setTimeout(() => {
+      setTransitionNotification(null);
+      notificationTimeoutRef.current = null;
+    }, 4000);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (notificationTimeoutRef.current) clearTimeout(notificationTimeoutRef.current);
+    };
+  }, []);
+
+  // Save changes to localStorage
+  useEffect(() => {
+    saveFlowtimeState({
+      mode,
+      elapsedFlowSeconds,
+      breakTimeLeft,
+      breakInitialSeconds,
+      isFlowing,
+      isBreakRunning,
+      taskSubject,
+      sessionRecords,
+    });
+  }, [
+    mode,
+    elapsedFlowSeconds,
+    breakTimeLeft,
+    breakInitialSeconds,
+    isFlowing,
+    isBreakRunning,
+    taskSubject,
+    sessionRecords,
+  ]);
 
   const currentRecommendedBreak = calculateFlowtimeBreakMinutes(elapsedFlowSeconds);
 
   // Flow Stopwatch Effect (count up)
   useEffect(() => {
     if (mode === 'flow' && isFlowing) {
-      flowTimerRef.current = setInterval(() => {
-        setElapsedFlowSeconds((prev) => prev + 1);
-      }, 1000);
+      lastFlowTickRef.current = Date.now();
+
+      const tick = () => {
+        // Advance by whole seconds and carry the sub-second remainder. Rounding (and
+        // flooring at 1) meant the extra visibilitychange tick could charge a full second
+        // for a few milliseconds, over-counting flow time on every tab switch.
+        const delta = Math.floor((Date.now() - lastFlowTickRef.current) / 1000);
+        if (delta <= 0) return;
+        lastFlowTickRef.current += delta * 1000;
+        if (delta > MAX_FLOW_GAP_SECONDS) {
+          // Nothing ticked for far longer than even a throttled background tab allows, so the
+          // machine slept or the tab was frozen. This stopwatch's reading is logged verbatim as
+          // focus minutes, so pause and let the user decide rather than banking the gap.
+          setIsFlowing(false);
+          return;
+        }
+        setElapsedFlowSeconds((prev) => prev + delta);
+      };
+
+      flowTimerRef.current = setInterval(tick, 1000);
+
+      const handleVisibilityChange = () => {
+        if (document.visibilityState === 'visible') {
+          tick();
+        }
+      };
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+
+      return () => {
+        if (flowTimerRef.current) clearInterval(flowTimerRef.current);
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      };
     } else if (flowTimerRef.current) {
       clearInterval(flowTimerRef.current);
     }
-
-    return () => {
-      if (flowTimerRef.current) clearInterval(flowTimerRef.current);
-    };
   }, [mode, isFlowing]);
 
   // Break Countdown Effect (count down)
   useEffect(() => {
     if (mode === 'break' && isBreakRunning) {
-      breakTimerRef.current = setInterval(() => {
-        setBreakTimeLeft((prev) => {
-          if (prev <= 1) {
-            // Break completed
-            if (soundEnabled) playBreakCompleteChime();
-            setIsBreakRunning(false);
-            setMode('flow');
-            setElapsedFlowSeconds(0);
-            setTransitionNotification('Break completed! Your mind is recharged and ready for the next flow block.');
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
+      lastBreakTickRef.current = Date.now();
+
+      const tick = () => {
+        // Advance by whole seconds and carry the sub-second remainder, so the extra
+        // visibilitychange tick cannot charge a full second for a few milliseconds.
+        const delta = Math.floor((Date.now() - lastBreakTickRef.current) / 1000);
+        if (delta <= 0) return;
+        lastBreakTickRef.current += delta * 1000;
+        if (delta > MAX_LIVE_GAP_SECONDS) {
+          setIsBreakRunning(false);
+          return;
+        }
+        setBreakTimeLeft((prev) => Math.max(0, prev - delta));
+      };
+
+      breakTimerRef.current = setInterval(tick, 1000);
+
+      const handleVisibilityChange = () => {
+        if (document.visibilityState === 'visible') {
+          tick();
+        }
+      };
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+
+      return () => {
+        if (breakTimerRef.current) clearInterval(breakTimerRef.current);
+        breakTimerRef.current = null;
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      };
     } else if (breakTimerRef.current) {
       clearInterval(breakTimerRef.current);
+      breakTimerRef.current = null;
     }
+  }, [mode, isBreakRunning]);
 
-    return () => {
-      if (breakTimerRef.current) clearInterval(breakTimerRef.current);
-    };
-  }, [mode, isBreakRunning, soundEnabled]);
+  // End the break once its countdown reaches zero. Doing this from an effect rather than
+  // from inside the tick updater keeps the updater pure — React ran it twice under
+  // StrictMode, which played the chime twice.
+  useEffect(() => {
+    if (breakTimeLeft > 0) {
+      breakEndedRef.current = false;
+      return;
+    }
+    if (mode !== 'break' || !isBreakRunning || breakEndedRef.current) return;
+    breakEndedRef.current = true;
+
+    if (soundEnabled) playBreakCompleteChime();
+    setIsBreakRunning(false);
+    setMode('flow');
+    setElapsedFlowSeconds(0);
+    showTransitionNotification('Break complete. Ready for next flow block.');
+  }, [breakTimeLeft, mode, isBreakRunning, soundEnabled]);
+
+  // Released once the mode change has actually landed, so a later flow block can end normally.
+  useEffect(() => {
+    flowEndFiredRef.current = false;
+  }, [mode]);
 
   // When user feels fatigue or reaches natural stop in flow:
   const handleTriggerBreak = () => {
-    const focusedMinutes = Math.max(1, Math.round(elapsedFlowSeconds / 60));
+    if (flowEndFiredRef.current) return;
+    flowEndFiredRef.current = true;
+
+    // Floor, matching calculateFlowtimeBreakMinutes — rounding up made the logged minutes
+    // contradict the rest tier the same block was awarded.
+    const focusedMinutes = Math.max(1, Math.floor(elapsedFlowSeconds / 60));
     const breakMinutes = calculateFlowtimeBreakMinutes(elapsedFlowSeconds);
     const breakSeconds = breakMinutes * 60;
 
@@ -83,15 +208,14 @@ export function FlowtimeTimer({ onSessionComplete, soundEnabled }: FlowtimeTimer
       phase: 'work',
     });
 
-    setSessionRecords((prev) => [
-      {
-        id: Math.random().toString(),
-        minutes: focusedMinutes,
-        breakMins: breakMinutes,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      },
-      ...prev.slice(0, 4),
-    ]);
+    const record = {
+      id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+      minutes: focusedMinutes,
+      breakMins: breakMinutes,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      dateKey: new Date().toDateString(),
+    };
+    setSessionRecords((prev) => [record, ...prev.slice(0, 4)]);
 
     if (soundEnabled) playFocusCompleteChime();
 
@@ -102,13 +226,9 @@ export function FlowtimeTimer({ onSessionComplete, soundEnabled }: FlowtimeTimer
     setBreakTimeLeft(breakSeconds);
     setIsBreakRunning(true);
 
-    setTransitionNotification(
-      `Flow session of ${focusedMinutes} min complete! Automatically starting your calculated ${breakMinutes}-min break.`
+    showTransitionNotification(
+      `Flow ended (${focusedMinutes}m). Starting ${breakMinutes}m break.`
     );
-
-    setTimeout(() => {
-      setTransitionNotification(null);
-    }, 7000);
   };
 
   const handleResetFlow = () => {
@@ -121,7 +241,13 @@ export function FlowtimeTimer({ onSessionComplete, soundEnabled }: FlowtimeTimer
     setMode('flow');
     setElapsedFlowSeconds(0);
     setBreakTimeLeft(0);
+    setBreakInitialSeconds(0);
   };
+
+  // The log is headed "Today's", but records only carried a clock time, so yesterday's
+  // blocks kept showing. Records saved before the day key existed are treated as stale.
+  const todayKey = new Date().toDateString();
+  const todayRecords = sessionRecords.filter((rec) => rec.dateKey === todayKey);
 
   const breakProgressPercent = breakInitialSeconds > 0 
     ? Math.min(100, Math.max(0, ((breakInitialSeconds - breakTimeLeft) / breakInitialSeconds) * 100))
@@ -156,12 +282,12 @@ export function FlowtimeTimer({ onSessionComplete, soundEnabled }: FlowtimeTimer
             {mode === 'flow' ? (
               <>
                 <Brain className="w-3.5 h-3.5 text-[#58705C]" />
-                <span>Stopwatch Mode: Flow State Tracking</span>
+                <span>Flow Stopwatch</span>
               </>
             ) : (
               <>
                 <Coffee className="w-3.5 h-3.5 text-[#B45309]" />
-                <span>Restorative Break Countdown</span>
+                <span>Break Countdown</span>
               </>
             )}
           </div>
@@ -170,7 +296,7 @@ export function FlowtimeTimer({ onSessionComplete, soundEnabled }: FlowtimeTimer
         {/* Task Focus Input */}
         <div className="max-w-md mx-auto mb-8">
           <label htmlFor="flowtime-task-input" className="block text-center text-xs tracking-wider uppercase text-[#78716C] mb-2 font-medium">
-            {mode === 'flow' ? 'Deep Work Objective' : 'Break Recovery'}
+            {mode === 'flow' ? 'Task' : 'Break'}
           </label>
           {mode === 'flow' ? (
             <input
@@ -178,12 +304,12 @@ export function FlowtimeTimer({ onSessionComplete, soundEnabled }: FlowtimeTimer
               type="text"
               value={taskSubject}
               onChange={(e) => setTaskSubject(e.target.value)}
-              placeholder="e.g., Working through Linear Algebra proof..."
+              placeholder="e.g. Linear Algebra proof..."
               className="w-full text-center px-4 py-2.5 rounded-xl border border-[#E7E3DC] bg-[#FAF8F5] text-sm text-[#292524] placeholder-[#A8A29E] focus:outline-none focus:border-[#58705C] transition-colors"
             />
           ) : (
             <p className="text-center text-sm font-serif italic text-[#58705C]">
-              Step completely away from your desk. Let your brain consolidate the session.
+              Step away and rest your eyes.
             </p>
           )}
         </div>
@@ -195,14 +321,14 @@ export function FlowtimeTimer({ onSessionComplete, soundEnabled }: FlowtimeTimer
               {formatTime(elapsedFlowSeconds)}
             </div>
             <div className="text-xs font-medium uppercase tracking-widest text-[#78716C] mt-3">
-              {isFlowing ? 'Flowing &bull; Count-Up Active' : 'Ready to Immerse'}
+              {isFlowing ? 'Flowing' : 'Ready'}
             </div>
 
             {/* Live Break Calculation Card */}
-            <div className="mt-6 px-4 py-2.5 rounded-xl bg-[#FAF8F5] border border-[#E7E3DC] flex items-center gap-3 text-xs text-[#57534E]">
+            <div className="mt-6 px-4 py-2 rounded-xl bg-[#FAF8F5] border border-[#E7E3DC] flex items-center gap-2.5 text-xs text-[#57534E]">
               <Clock className="w-4 h-4 text-[#58705C]" />
               <span>
-                Earned Rest: <strong className="text-[#292524] font-semibold">{currentRecommendedBreak} minutes</strong> break recommended if you stop now
+                Earned rest: <strong className="text-[#292524] font-semibold">{currentRecommendedBreak}m</strong> if you stop now
               </span>
             </div>
           </div>
@@ -230,7 +356,7 @@ export function FlowtimeTimer({ onSessionComplete, soundEnabled }: FlowtimeTimer
                   {formatTime(breakTimeLeft)}
                 </span>
                 <span className="text-xs font-medium uppercase tracking-widest text-[#58705C] mt-2">
-                  Break In Progress
+                  Break
                 </span>
               </div>
             </div>
@@ -262,12 +388,12 @@ export function FlowtimeTimer({ onSessionComplete, soundEnabled }: FlowtimeTimer
                 {isFlowing ? (
                   <>
                     <Pause className="w-4 h-4 fill-current" />
-                    <span>Pause Flow</span>
+                    <span>Pause</span>
                   </>
                 ) : (
                   <>
                     <Play className="w-4 h-4 fill-current ml-0.5" />
-                    <span>{elapsedFlowSeconds > 0 ? 'Resume Flow' : 'Enter Flow State'}</span>
+                    <span>{elapsedFlowSeconds > 0 ? 'Resume' : 'Start'}</span>
                   </>
                 )}
               </button>
@@ -280,7 +406,7 @@ export function FlowtimeTimer({ onSessionComplete, soundEnabled }: FlowtimeTimer
                   className="px-5 py-3 rounded-full bg-[#58705C] text-[#FAF8F5] hover:bg-[#475C4B] font-medium text-xs sm:text-sm flex items-center gap-2 transition-all shadow-xs"
                 >
                   <Coffee className="w-4 h-4" />
-                  <span>Take {currentRecommendedBreak}m Break</span>
+                  <span>Break ({currentRecommendedBreak}m)</span>
                 </button>
               )}
             </>
@@ -291,14 +417,14 @@ export function FlowtimeTimer({ onSessionComplete, soundEnabled }: FlowtimeTimer
                 onClick={() => setIsBreakRunning(!isBreakRunning)}
                 className="px-6 py-3 rounded-full border border-[#E7E3DC] text-xs font-medium text-[#292524] hover:bg-[#F7F5F0] transition-colors"
               >
-                {isBreakRunning ? 'Pause Break' : 'Resume Break'}
+                {isBreakRunning ? 'Pause' : 'Resume'}
               </button>
               <button
                 id="flowtime-skip-break-btn"
                 onClick={handleSkipBreak}
                 className="px-6 py-3 rounded-full bg-[#1C1917] text-[#FAF8F5] text-xs font-medium hover:bg-[#2E2A27] flex items-center gap-2 transition-colors"
               >
-                <span>End Break & Refocus</span>
+                <span>Finish Break</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
             </>
@@ -307,36 +433,38 @@ export function FlowtimeTimer({ onSessionComplete, soundEnabled }: FlowtimeTimer
 
         {/* Science Breakdown Scale */}
         <div className="mt-10 pt-6 border-t border-[#F0ECE4]">
-          <div className="text-xs text-[#78716C] mb-2 font-medium">Flowtime Rest Duration Formula:</div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-            <div className={`p-2.5 rounded-lg border ${elapsedFlowSeconds < 20 * 60 ? 'border-[#58705C] bg-[#F4F6F4]' : 'border-[#E7E3DC] bg-[#FAF8F5]'}`}>
-              <div className="font-medium text-[#292524]">&lt; 20 min flow</div>
-              <div className="text-[#58705C] font-semibold">5 min break</div>
-            </div>
-            <div className={`p-2.5 rounded-lg border ${elapsedFlowSeconds >= 20 * 60 && elapsedFlowSeconds < 45 * 60 ? 'border-[#58705C] bg-[#F4F6F4]' : 'border-[#E7E3DC] bg-[#FAF8F5]'}`}>
-              <div className="font-medium text-[#292524]">20 – 45 min flow</div>
-              <div className="text-[#58705C] font-semibold">8 min break</div>
-            </div>
-            <div className={`p-2.5 rounded-lg border ${elapsedFlowSeconds >= 45 * 60 && elapsedFlowSeconds < 75 * 60 ? 'border-[#58705C] bg-[#F4F6F4]' : 'border-[#E7E3DC] bg-[#FAF8F5]'}`}>
-              <div className="font-medium text-[#292524]">45 – 75 min flow</div>
-              <div className="text-[#58705C] font-semibold">10 min break</div>
-            </div>
-            <div className={`p-2.5 rounded-lg border ${elapsedFlowSeconds >= 75 * 60 ? 'border-[#58705C] bg-[#F4F6F4]' : 'border-[#E7E3DC] bg-[#FAF8F5]'}`}>
-              <div className="font-medium text-[#292524]">75+ min flow</div>
-              <div className="text-[#58705C] font-semibold">15 min break</div>
-            </div>
+          <div className="text-xs text-[#78716C] mb-2 font-medium">Rest Scale:</div>
+          {/* Tiers mirror calculateFlowtimeBreakMinutes exactly. The 100m+ tier used to be
+              missing, so a long block was promised a 15m break and given 20m. */}
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
+            {REST_TIERS.map((tier) => {
+              const isCurrent =
+                elapsedFlowSeconds >= tier.fromMinutes * 60 &&
+                (tier.toMinutes === null || elapsedFlowSeconds < tier.toMinutes * 60);
+              return (
+                <div
+                  key={tier.label}
+                  className={`p-2.5 rounded-lg border ${
+                    isCurrent ? 'border-[#58705C] bg-[#F4F6F4]' : 'border-[#E7E3DC] bg-[#FAF8F5]'
+                  }`}
+                >
+                  <div className="font-medium text-[#292524]">{tier.label}</div>
+                  <div className="text-[#58705C] font-semibold">{tier.breakMinutes}m break</div>
+                </div>
+              );
+            })}
           </div>
         </div>
 
         {/* Recent Flow Sessions Today */}
-        {sessionRecords.length > 0 && (
+        {todayRecords.length > 0 && (
           <div className="mt-6 pt-4 border-t border-[#F0ECE4] text-xs">
             <div className="font-medium text-[#44403C] mb-2">Today's Flow Log:</div>
             <div className="space-y-1.5">
-              {sessionRecords.map((rec) => (
+              {todayRecords.map((rec) => (
                 <div key={rec.id} className="flex justify-between items-center py-1 px-2.5 rounded bg-[#FAF8F5] text-[#57534E]">
                   <span>{rec.timestamp} &bull; Flow block</span>
-                  <span className="font-mono text-[#292524] font-medium">{rec.minutes} mins focused &rarr; {rec.breakMins}m break</span>
+                  <span className="font-mono text-[#292524] font-medium">{rec.minutes}m focus &rarr; {rec.breakMins}m break</span>
                 </div>
               ))}
             </div>
@@ -350,8 +478,8 @@ export function FlowtimeTimer({ onSessionComplete, soundEnabled }: FlowtimeTimer
           <Brain className="w-4 h-4" />
         </div>
         <div>
-          <span className="font-semibold text-[#292524]">Flowtime Philosophy: </span>
-          When your mind is in genuine flow, timer alarms disrupt high-level neural synthesis. Work until you feel the first symptoms of distraction or restlessness, then reward yourself with the exact break your mind needs.
+          <span className="font-semibold text-[#1C1917]">Tip: </span>
+          Stop when you notice fatigue or restlessness, then take your earned proportional rest.
         </div>
       </div>
     </div>

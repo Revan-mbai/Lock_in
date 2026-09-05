@@ -1,12 +1,134 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
-import { defineConfig } from 'vite';
+import { defineConfig, Plugin } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
+
+function hmrCompatPlugin(): Plugin {
+  const dummyHot = {
+    send: () => {},
+    close: () => {},
+    on: () => {},
+    off: () => {},
+    listen: () => {},
+    clients: new Set(),
+  };
+
+  return {
+    name: 'hmr-disabled-compat',
+    enforce: 'pre',
+    configureServer(server) {
+      if (!server.ws) {
+        (server as any).ws = dummyHot;
+      } else if (!server.ws.send) {
+        server.ws.send = () => {};
+      }
+      if (!server.hot) {
+        (server as any).hot = dummyHot;
+      } else if (!server.hot.send) {
+        (server.hot as any).send = () => {};
+      }
+      if (server.environments) {
+        for (const env of Object.values(server.environments) as any[]) {
+          if (!env.hot) {
+            env.hot = dummyHot;
+          } else if (!env.hot.send) {
+            env.hot.send = () => {};
+          }
+        }
+      }
+    },
+    hotUpdate(this: any, { server }) {
+      if (this.environment && !this.environment.hot) {
+        this.environment.hot = dummyHot;
+      }
+      if (server) {
+        if (!server.hot) (server as any).hot = dummyHot;
+        if (!server.ws) (server as any).ws = dummyHot;
+        if (server.environments) {
+          for (const env of Object.values(server.environments) as any[]) {
+            if (!env.hot) env.hot = dummyHot;
+          }
+        }
+      }
+      if (process.env.DISABLE_HMR === 'true') {
+        return [];
+      }
+    },
+    transform(code, id) {
+      if (id.includes('vite/dist/client/client.mjs') || id.includes('@vite/client')) {
+        return code
+          .replace(/ws\.send\(JSON\.stringify\(data\)\);/g, 'if (ws && typeof ws.send === "function") { try { ws.send(JSON.stringify(data)); } catch {} }')
+          .replace(/wsTransport\.send\(data\);/g, 'if (wsTransport && typeof wsTransport.send === "function") { try { wsTransport.send(data); } catch {} }')
+          .replace(/this\.transport\.send\(payload\)\.catch/g, '(this.transport?.send?.(payload) || Promise.resolve()).catch')
+          .replace(/error:\s*\(err\)\s*=>\s*console\.error\(\"\[vite\]\",\s*err\)/g, 'error: (err) => { if (err && (String(err).includes("send") || String(err).includes("WebSocket") || String(err).includes("connect"))) return; console.error("[vite]", err); }');
+      }
+    },
+    transformIndexHtml: {
+      order: 'pre',
+      handler(html) {
+        const errorShieldScript = `<script>
+(function() {
+  var orig = console.error;
+  console.error = function() {
+    var first = arguments[0];
+    var second = arguments[1];
+    if (first === '[vite]' && second && (String(second).indexOf('send') !== -1 || String(second).indexOf('WebSocket') !== -1)) {
+      return;
+    }
+    if (typeof first === 'string' && first.indexOf('[vite]') !== -1 && (first.indexOf('send') !== -1 || first.indexOf('WebSocket') !== -1)) {
+      return;
+    }
+    return orig.apply(console, arguments);
+  };
+})();
+</script>`;
+        if (html.includes('<head>')) {
+          return html.replace('<head>', '<head>' + errorShieldScript);
+        }
+        return errorShieldScript + html;
+      },
+    },
+  };
+}
+
+function devServiceWorkerCleanupPlugin(): Plugin {
+  // vite-plugin-pwa is disabled in development, so nothing generates /sw.js here. Earlier
+  // versions of this app registered a hand-written cache-first worker at that path, which
+  // pinned stale HTML and modules in the browser — including the very code that would have
+  // stopped registering it. Serving a self-destroying worker lets any browser still holding
+  // that registration update to one that drops the caches and unregisters itself.
+  const selfDestroyingWorker = [
+    "self.addEventListener('install', () => self.skipWaiting());",
+    "self.addEventListener('activate', (event) => {",
+    '  event.waitUntil((async () => {',
+    '    const keys = await caches.keys();',
+    '    await Promise.all(keys.map((key) => caches.delete(key)));',
+    '    await self.registration.unregister();',
+    "    const windows = await self.clients.matchAll({ type: 'window' });",
+    '    windows.forEach((client) => client.navigate(client.url));',
+    '  })());',
+    '});',
+  ].join('\n');
+
+  return {
+    name: 'dev-service-worker-cleanup',
+    apply: 'serve',
+    configureServer(server) {
+      server.middlewares.use('/sw.js', (_req, res) => {
+        res.setHeader('Content-Type', 'application/javascript');
+        res.setHeader('Cache-Control', 'no-store');
+        res.end(selfDestroyingWorker);
+      });
+    },
+  };
+}
 
 export default defineConfig(() => {
   return {
     plugins: [
+      hmrCompatPlugin(),
+      devServiceWorkerCleanupPlugin(),
       react(),
       tailwindcss(),
       VitePWA({
@@ -27,6 +149,8 @@ export default defineConfig(() => {
           theme_color: '#FAF8F5',
           background_color: '#FAF8F5',
           display: 'standalone',
+          orientation: 'portrait-primary',
+          categories: ['education', 'productivity', 'utilities'],
           start_url: '/',
           scope: '/',
           icons: [
@@ -84,8 +208,7 @@ export default defineConfig(() => {
           ],
         },
         devOptions: {
-          enabled: true,
-          type: 'module',
+          enabled: false,
         },
       }),
     ],
@@ -96,10 +219,11 @@ export default defineConfig(() => {
     },
     server: {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
-      // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
+      // Do not modify—file watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
       // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
+      hotUpdateEnvironments: process.env.DISABLE_HMR === 'true' ? () => Promise.resolve() : undefined,
     },
   };
 });

@@ -32,70 +32,78 @@ const SOUND_OPTIONS: SoundOption[] = [
   {
     id: 'brown',
     label: 'Brown Noise',
-    desc: 'Deep warm rumble for cognitive masking',
+    desc: 'Deep warm rumble',
     icon: Wind,
     accent: 'text-[#B45309]',
   },
   {
     id: 'rain',
-    label: 'Gentle Rain',
-    desc: 'Soft steady window rainfall',
+    label: 'Rain',
+    desc: 'Steady rainfall',
     icon: CloudRain,
     accent: 'text-[#3B82F6]',
   },
   {
     id: 'waves',
-    label: 'Ocean Waves',
-    desc: 'Rhythmic coastal surf swell',
+    label: 'Waves',
+    desc: 'Coastal surf',
     icon: Waves,
     accent: 'text-[#0D9488]',
   },
   {
     id: 'fireplace',
-    label: 'Campfire Hearth',
-    desc: 'Warm embers & cozy subtle crackle',
+    label: 'Campfire',
+    desc: 'Gentle crackle',
     icon: Flame,
     accent: 'text-[#EA580C]',
   },
   {
     id: 'cafe',
-    label: 'Coffeehouse',
-    desc: 'Muffled ambient room murmur',
+    label: 'Cafe',
+    desc: 'Room murmur',
     icon: Coffee,
     accent: 'text-[#92400E]',
   },
   {
     id: 'pink',
     label: 'Pink Noise',
-    desc: 'Balanced 1/f steady stream',
+    desc: 'Balanced stream',
     icon: Sparkles,
     accent: 'text-[#D97706]',
   },
   {
     id: 'binaural',
-    label: 'Alpha Wave Drone',
-    desc: '10Hz relaxed alertness binaural tone',
+    label: 'Alpha Wave',
+    desc: '10Hz binaural tone',
     icon: Headphones,
     accent: 'text-[#10B981]',
   },
   {
     id: 'white',
-    label: 'Crisp White Noise',
-    desc: 'Broad-spectrum background mask',
+    label: 'White Noise',
+    desc: 'Clean static',
     icon: Radio,
     accent: 'text-[#6B7280]',
   },
 ];
 
 export function AmbientSoundPlayer({ isPlaying, onTogglePlay }: AmbientSoundPlayerProps) {
-  const [soundType, setSoundType] = useState<AmbientSoundType>('brown');
-  const [volume, setVolume] = useState(0.2);
+  // Seeded from the audio singleton rather than from constants: entering Zen mode unmounts
+  // this component while the sound keeps playing, so local defaults would come back showing
+  // "Brown Noise" at 20% no matter what is actually audible.
+  const [soundType, setSoundType] = useState<AmbientSoundType>(() => ambientPlayer.getType());
+  const [volume, setVolume] = useState(() => ambientPlayer.getVolume());
   const [isOpen, setIsOpen] = useState(false);
 
   const handleSelectType = (type: AmbientSoundType) => {
     setSoundType(type);
     if (isPlaying) {
       ambientPlayer.start(type, volume);
+    } else {
+      // Record the choice even while paused. This component unmounts whenever Zen mode is
+      // entered and re-seeds itself from the singleton, so a selection made while paused was
+      // otherwise silently reverted.
+      ambientPlayer.setPendingType(type);
     }
   };
 
@@ -158,10 +166,10 @@ export function AmbientSoundPlayer({ isPlaying, onTogglePlay }: AmbientSoundPlay
           <div className="flex items-center justify-between border-b border-[#F0ECE4] pb-2.5">
             <div>
               <span className="font-serif text-sm font-semibold text-[#1C1917] block">
-                Focus Soundscapes
+                Ambient Sound
               </span>
               <span className="text-[10px] text-[#8C827A]">
-                8 procedurally synthesized audio masks
+                Background noise generator
               </span>
             </div>
             <button
@@ -205,7 +213,7 @@ export function AmbientSoundPlayer({ isPlaying, onTogglePlay }: AmbientSoundPlay
           {/* Volume slider */}
           <div className="space-y-1.5 pt-2.5 border-t border-[#F0ECE4]">
             <div className="flex justify-between text-[11px] text-[#78716C]">
-              <span>Master Volume</span>
+              <span>Volume</span>
               <span className="font-mono text-[10px]">{Math.round(volume * 250)}%</span>
             </div>
             <input
@@ -229,7 +237,7 @@ export function AmbientSoundPlayer({ isPlaying, onTogglePlay }: AmbientSoundPlay
                   : 'bg-[#1C1917] text-[#FAF8F5] hover:bg-[#2E2A27]'
               }`}
             >
-              {isPlaying ? `Pause ${currentOption.label}` : `Play ${currentOption.label}`}
+              {isPlaying ? 'Pause Sound' : 'Play Sound'}
             </button>
           </div>
         </div>

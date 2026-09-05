@@ -1,1 +1,11 @@
 @import "tailwindcss";
+
+/* index.html downloads Plus Jakarta Sans, Newsreader and JetBrains Mono, but Tailwind v4 takes
+   its font stacks from theme tokens — which were never overridden. Every font-sans/font-serif/
+   font-mono class therefore rendered in the default system stack and the downloaded webfonts
+   went entirely unused. */
+@theme {
+  --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-serif: 'Newsreader', ui-serif, Georgia, Cambria, 'Times New Roman', serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}

@@ -3,6 +3,7 @@ import { Play, Pause, RotateCcw, SkipForward, Sparkles, Compass, ShieldCheck, Fo
 import { formatTime } from '../../utils/formatters';
 import { playFocusCompleteChime, playBreakCompleteChime } from '../../utils/audio';
 import { FocusSessionLog } from '../../types';
+import { loadFiftyTwoSeventeenState, saveFiftyTwoSeventeenState, MAX_LIVE_GAP_SECONDS } from '../../utils/timerPersistence';
 
 interface FiftyTwoSeventeenTimerProps {
   onSessionComplete: (log: Omit<FocusSessionLog, 'id' | 'completedAt'>) => void;
@@ -13,35 +14,74 @@ export function FiftyTwoSeventeenTimer({ onSessionComplete, soundEnabled }: Fift
   const WORK_SECONDS = 52 * 60; // 3120s
   const BREAK_SECONDS = 17 * 60; // 1020s
 
-  const [phase, setPhase] = useState<'work' | 'break'>('work');
-  const [timeLeft, setTimeLeft] = useState(WORK_SECONDS);
-  const [isRunning, setIsRunning] = useState(false);
-  const [taskSubject, setTaskSubject] = useState('');
-  const [autoStartNext, setAutoStartNext] = useState(true);
+  // Load saved state once on mount rather than re-parsing localStorage on every render.
+  const [saved] = useState(loadFiftyTwoSeventeenState);
+
+  const [phase, setPhase] = useState<'work' | 'break'>(() => saved?.phase ?? 'work');
+  const [timeLeft, setTimeLeft] = useState(() => saved?.timeLeft ?? WORK_SECONDS);
+  const [isRunning, setIsRunning] = useState(() => saved?.isRunning ?? false);
+  const [taskSubject, setTaskSubject] = useState(() => saved?.taskSubject ?? '');
+  const [autoStartNext, setAutoStartNext] = useState(() => saved?.autoStartNext ?? true);
   const [transitionNotification, setTransitionNotification] = useState<string | null>(null);
 
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastTickRef = useRef<number>(Date.now());
+  const notificationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Guards the phase transition so a single expiry can only fire it once. Starts false: the
+  // loader only returns isRunning with timeLeft at 0 when the block really did run out while
+  // the app was briefly away, and that session still deserves to be logged.
+  const transitionFiredRef = useRef(false);
+
+  // Show a transition banner, replacing any banner still counting down.
+  const showTransitionNotification = (message: string) => {
+    setTransitionNotification(message);
+    if (notificationTimeoutRef.current) clearTimeout(notificationTimeoutRef.current);
+    notificationTimeoutRef.current = setTimeout(() => {
+      setTransitionNotification(null);
+      notificationTimeoutRef.current = null;
+    }, 4000);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (notificationTimeoutRef.current) clearTimeout(notificationTimeoutRef.current);
+    };
+  }, []);
+
+  // Save changes to localStorage
+  useEffect(() => {
+    saveFiftyTwoSeventeenState({
+      phase,
+      timeLeft,
+      isRunning,
+      taskSubject,
+      autoStartNext,
+    });
+  }, [phase, timeLeft, isRunning, taskSubject, autoStartNext]);
 
   const totalPhaseSeconds = phase === 'work' ? WORK_SECONDS : BREAK_SECONDS;
   const progressPercent = Math.min(100, Math.max(0, ((totalPhaseSeconds - timeLeft) / totalPhaseSeconds) * 100));
 
-  const handlePhaseTransition = (fromPhase: 'work' | 'break') => {
+  // `elapsedSeconds` is the time actually spent in the phase, so skipping early logs what
+  // was really studied instead of crediting a full 52-minute sprint.
+  const handlePhaseTransition = (fromPhase: 'work' | 'break', elapsedSeconds: number) => {
     if (fromPhase === 'work') {
-      onSessionComplete({
-        methodId: 'fifty-two-seventeen',
-        methodName: 'The 52/17 Rule',
-        taskTitle: taskSubject.trim() || '52-Minute Sprint',
-        durationMinutes: 52,
-        phase: 'work',
-      });
+      const focusedMinutes = Math.round(elapsedSeconds / 60);
+      if (focusedMinutes >= 1) {
+        onSessionComplete({
+          methodId: 'fifty-two-seventeen',
+          methodName: 'The 52/17 Rule',
+          taskTitle: taskSubject.trim() || '52-Minute Sprint',
+          durationMinutes: focusedMinutes,
+          phase: 'work',
+        });
+      }
 
       if (soundEnabled) playFocusCompleteChime();
 
       setPhase('break');
       setTimeLeft(BREAK_SECONDS);
-      setTransitionNotification(
-        '52-minute sprint completed! Automatically starting your 17-minute unplugged break.'
-      );
+      showTransitionNotification('52m sprint done. Starting 17m break.');
 
       if (autoStartNext) {
         setIsRunning(true);
@@ -53,7 +93,7 @@ export function FiftyTwoSeventeenTimer({ onSessionComplete, soundEnabled }: Fift
 
       setPhase('work');
       setTimeLeft(WORK_SECONDS);
-      setTransitionNotification('17-minute unplugged rest over. Refocused and starting your next 52-minute sprint.');
+      showTransitionNotification('Break complete. Ready for 52m focus.');
 
       if (autoStartNext) {
         setIsRunning(true);
@@ -61,40 +101,82 @@ export function FiftyTwoSeventeenTimer({ onSessionComplete, soundEnabled }: Fift
         setIsRunning(false);
       }
     }
-
-    setTimeout(() => {
-      setTransitionNotification(null);
-    }, 7000);
   };
 
+  // The updater stays pure — scheduling the phase transition from inside it made React run
+  // the transition twice under StrictMode, which logged every completed sprint twice.
   useEffect(() => {
-    if (isRunning) {
-      timerRef.current = setInterval(() => {
-        setTimeLeft((prev) => {
-          if (prev <= 1) {
-            handlePhaseTransition(phase);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    } else if (timerRef.current) {
-      clearInterval(timerRef.current);
-    }
+    if (!isRunning) return;
+
+    lastTickRef.current = Date.now();
+
+    const tick = () => {
+      // Advance by whole seconds and carry the sub-second remainder. Rounding (and flooring
+      // at 1) meant the extra visibilitychange tick could charge a full second for a few
+      // milliseconds, so the countdown ran fast on every tab switch.
+      const delta = Math.floor((Date.now() - lastTickRef.current) / 1000);
+      if (delta <= 0) return;
+      lastTickRef.current += delta * 1000;
+      if (delta > MAX_LIVE_GAP_SECONDS) {
+        // Far more time passed than any block can span, so the machine was asleep rather
+        // than the tab merely backgrounded. Pause instead of banking a session.
+        setIsRunning(false);
+        return;
+      }
+      setTimeLeft((prev) => Math.max(0, prev - delta));
+    };
+
+    timerRef.current = setInterval(tick, 1000);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        tick();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
+      timerRef.current = null;
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [isRunning, phase, autoStartNext]);
+  }, [isRunning]);
 
-  const handleStartPause = () => setIsRunning(!isRunning);
+  // Fire the phase transition once the countdown reaches zero. Running it here rather than
+  // inside the tick means it always sees the current task name and sound setting.
+  useEffect(() => {
+    if (timeLeft > 0) {
+      transitionFiredRef.current = false;
+      return;
+    }
+    if (!isRunning || transitionFiredRef.current) return;
+    transitionFiredRef.current = true;
+    handlePhaseTransition(phase, totalPhaseSeconds);
+  }, [timeLeft, isRunning, phase, totalPhaseSeconds]);
+
+  const handleStartPause = () => {
+    // Pressing Play on an exhausted block starts the next one rather than re-completing the
+    // spent one and logging a phantom full-length session.
+    if (!isRunning && timeLeft <= 0) {
+      setTimeLeft(totalPhaseSeconds);
+    }
+    setIsRunning(!isRunning);
+  };
 
   const handleReset = () => {
     setIsRunning(false);
     setTimeLeft(phase === 'work' ? WORK_SECONDS : BREAK_SECONDS);
   };
 
-  const handleSkipPhase = () => handlePhaseTransition(phase);
+  const handleSkipPhase = () => {
+    // Two clicks dispatched before React re-renders share this closure, so without a guard a
+    // fast double-click credited the same block twice. transitionFiredRef is reset by the
+    // zero-detection effect as soon as the next phase's countdown is in place.
+    if (transitionFiredRef.current) return;
+    transitionFiredRef.current = true;
+    // Credit only the time actually spent, not the whole configured block.
+    handlePhaseTransition(phase, totalPhaseSeconds - timeLeft);
+  };
 
   return (
     <div id="fifty-two-seventeen-timer-container" className="max-w-2xl mx-auto space-y-6">
@@ -136,7 +218,7 @@ export function FiftyTwoSeventeenTimer({ onSessionComplete, soundEnabled }: Fift
                 : 'text-[#78716C] hover:text-[#292524] bg-[#F7F5F0]'
             }`}
           >
-            Sprint Focus (52 min)
+            Focus (52m)
           </button>
           <button
             id="fifty-two-break-tab"
@@ -153,14 +235,14 @@ export function FiftyTwoSeventeenTimer({ onSessionComplete, soundEnabled }: Fift
                 : 'text-[#78716C] hover:text-[#292524] bg-[#F7F5F0]'
             }`}
           >
-            Disconnected Break (17 min)
+            Break (17m)
           </button>
         </div>
 
         {/* Task Focus Input */}
         <div className="max-w-md mx-auto mb-8">
           <label htmlFor="fifty-two-task-input" className="block text-center text-xs tracking-wider uppercase text-[#78716C] mb-2 font-medium">
-            {phase === 'work' ? 'Sprint Objective' : 'Recovery Protocol'}
+            {phase === 'work' ? 'Task' : 'Break'}
           </label>
           {phase === 'work' ? (
             <input
@@ -168,13 +250,13 @@ export function FiftyTwoSeventeenTimer({ onSessionComplete, soundEnabled }: Fift
               type="text"
               value={taskSubject}
               onChange={(e) => setTaskSubject(e.target.value)}
-              placeholder="e.g., Drafting research synthesis notes..."
+              placeholder="e.g. Research synthesis notes..."
               className="w-full text-center px-4 py-2.5 rounded-xl border border-[#E7E3DC] bg-[#FAF8F5] text-sm text-[#292524] placeholder-[#A8A29E] focus:outline-none focus:border-[#4A6B82] transition-colors"
             />
           ) : (
             <div className="text-center text-sm font-serif italic text-[#4A6B82] flex items-center justify-center gap-1.5">
               <Footprints className="w-4 h-4" />
-              <span>Unplug completely: Leave the desk &bull; No phone &bull; Sunlight or light stretch</span>
+              <span>Step away from screens and recharge.</span>
             </div>
           )}
         </div>
@@ -203,10 +285,10 @@ export function FiftyTwoSeventeenTimer({ onSessionComplete, soundEnabled }: Fift
                 {formatTime(timeLeft)}
               </span>
               <span className="text-xs font-medium uppercase tracking-widest text-[#78716C] mt-2">
-                {phase === 'work' ? '52m Sprint Intensity' : '17m Real Rest'}
+                {phase === 'work' ? 'Focus' : 'Break'}
               </span>
               <span className="text-[11px] text-[#A8A29E] mt-1">
-                {autoStartNext ? 'Auto-shifts into 17m break' : 'Manual shift'}
+                {autoStartNext ? 'Auto-shifts into break' : 'Manual shift'}
               </span>
             </div>
           </div>
@@ -240,7 +322,7 @@ export function FiftyTwoSeventeenTimer({ onSessionComplete, soundEnabled }: Fift
             ) : (
               <>
                 <Play className="w-4 h-4 fill-current ml-0.5" />
-                <span>{timeLeft < totalPhaseSeconds ? 'Resume' : 'Start 52m Sprint'}</span>
+                <span>{timeLeft < totalPhaseSeconds ? 'Resume' : 'Start'}</span>
               </>
             )}
           </button>
@@ -259,7 +341,7 @@ export function FiftyTwoSeventeenTimer({ onSessionComplete, soundEnabled }: Fift
         <div className="mt-10 pt-6 border-t border-[#F0ECE4] flex items-center justify-between text-xs text-[#78716C]">
           <div className="flex items-center gap-1.5">
             <Compass className="w-4 h-4 text-[#4A6B82]" />
-            <span>Ratio: 75% Deep Focus / 25% Disconnected Rest</span>
+            <span>Ratio: 52m Focus / 17m Rest</span>
           </div>
 
           <label className="flex items-center gap-2 cursor-pointer select-none">
@@ -270,7 +352,7 @@ export function FiftyTwoSeventeenTimer({ onSessionComplete, soundEnabled }: Fift
               onChange={(e) => setAutoStartNext(e.target.checked)}
               className="w-3.5 h-3.5 rounded accent-[#4A6B82]"
             />
-            <span>Auto-shift into break</span>
+            <span>Auto-shift</span>
           </label>
         </div>
       </div>
@@ -281,8 +363,8 @@ export function FiftyTwoSeventeenTimer({ onSessionComplete, soundEnabled }: Fift
           <ShieldCheck className="w-4 h-4" />
         </div>
         <div>
-          <span className="font-semibold text-[#292524]">The DeskTime Finding: </span>
-          The key reason the 52/17 ratio outperforms longer sessions is the strict detachment: 17 minutes without notifications or screen glare is the exact sweet spot that resets dopamine and mental sharpness without inducing the grogginess of longer naps.
+          <span className="font-semibold text-[#1C1917]">Tip: </span>
+          17 minutes of offline rest resets dopamine and mental sharpness without causing grogginess.
         </div>
       </div>
     </div>

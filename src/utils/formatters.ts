@@ -1,13 +1,17 @@
 export function formatTime(seconds: number): string {
-  const mins = Math.floor(seconds / 60);
-  const secs = seconds % 60;
+  // Callers pass values straight out of localStorage, so guard against NaN/undefined and
+  // negatives rather than rendering "NaN:NaN" or "-1:-5".
+  const total = Number.isFinite(seconds) ? Math.max(0, Math.floor(seconds)) : 0;
+  const mins = Math.floor(total / 60);
+  const secs = total % 60;
   return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 }
 
 export function formatTimeWithHours(seconds: number): string {
-  const hrs = Math.floor(seconds / 3600);
-  const mins = Math.floor((seconds % 3600) / 60);
-  const secs = seconds % 60;
+  const total = Number.isFinite(seconds) ? Math.max(0, Math.floor(seconds)) : 0;
+  const hrs = Math.floor(total / 3600);
+  const mins = Math.floor((total % 3600) / 60);
+  const secs = total % 60;
 
   if (hrs > 0) {
     return `${hrs}h ${String(mins).padStart(2, '0')}m ${String(secs).padStart(2, '0')}s`;
@@ -16,7 +20,7 @@ export function formatTimeWithHours(seconds: number): string {
 }
 
 export function calculateFlowtimeBreakMinutes(focusedSeconds: number): number {
-  const focusedMins = Math.floor(focusedSeconds / 60);
+  const focusedMins = Number.isFinite(focusedSeconds) ? Math.floor(Math.max(0, focusedSeconds) / 60) : 0;
   if (focusedMins < 20) return 5;
   if (focusedMins < 45) return 8;
   if (focusedMins < 75) return 10;

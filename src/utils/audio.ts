@@ -16,9 +16,26 @@ function getAudioContext(): AudioContext | null {
     }
   }
   if (audioCtx && audioCtx.state === 'suspended') {
-    audioCtx.resume();
+    void audioCtx.resume().catch(() => {
+      // Resuming is only permitted after a user gesture; the unlock listener below retries.
+    });
   }
   return audioCtx;
+}
+
+// Browsers refuse to start an AudioContext without a user gesture. A completion chime fires
+// from a timer, which has no gesture of its own, so unless the context was already unlocked
+// the chime is silently dropped. Create and resume it on the first interaction instead.
+if (typeof window !== 'undefined') {
+  const unlockEvents = ['pointerdown', 'keydown', 'touchstart'] as const;
+
+  const unlock = () => {
+    const ctx = getAudioContext();
+    if (!ctx || ctx.state === 'suspended') return; // Not unlocked yet — keep listening.
+    unlockEvents.forEach((event) => window.removeEventListener(event, unlock));
+  };
+
+  unlockEvents.forEach((event) => window.addEventListener(event, unlock, { passive: true }));
 }
 
 /**
@@ -99,6 +116,9 @@ export function playBreakCompleteChime(): void {
  * Procedural Web Audio Ambient Noise Engine
  * Supports: Brown Noise, Pink Noise, White Noise, Soft Rain, Ocean Waves, Alpha Drone, Campfire, and Coffeehouse
  */
+// Long enough to smooth the cut, short enough that pausing still feels instant.
+const FADE_OUT_SECONDS = 0.08;
+
 export class AmbientNoiseGenerator {
   private ctx: AudioContext | null = null;
   private gainNode: GainNode | null = null;
@@ -106,10 +126,14 @@ export class AmbientNoiseGenerator {
   private activeIntervals: number[] = [];
   private isRunning = false;
   private currentType: AmbientSoundType = 'brown';
+  // Kept on the singleton so the UI can recover the selection after it unmounts — entering
+  // Zen mode unmounts the player while the audio graph keeps running.
+  private currentVolume = 0.2;
 
   public start(type: AmbientSoundType, volume: number): void {
     this.stop();
     this.currentType = type;
+    this.currentVolume = volume;
 
     try {
       this.ctx = getAudioContext();
@@ -118,6 +142,10 @@ export class AmbientNoiseGenerator {
       this.gainNode = this.ctx.createGain();
       this.gainNode.gain.setValueAtTime(Math.max(0, Math.min(volume, 0.4)), this.ctx.currentTime);
       this.gainNode.connect(this.ctx.destination);
+
+      // Must be set before building the graph: the fireplace/cafe schedulers below
+      // bail out early unless the generator is already marked as running.
+      this.isRunning = true;
 
       if (type === 'brown') {
         // Brown noise (deep, comforting rumble for focus)
@@ -427,57 +455,88 @@ export class AmbientNoiseGenerator {
 
         this.activeNodes.push(osc1, osc2, subOsc, subGain, merger);
       }
-
-      this.isRunning = true;
     } catch (e) {
+      this.isRunning = false;
       console.warn('Ambient noise error:', e);
     }
   }
 
   public setVolume(volume: number): void {
+    this.currentVolume = volume;
     if (this.gainNode && this.ctx) {
       this.gainNode.gain.setValueAtTime(Math.max(0, Math.min(volume, 0.4)), this.ctx.currentTime);
     }
   }
 
   public stop(): void {
+    // Marked first so any crackle/murmur callback already queued bails out instead of
+    // attaching a new node to the graph being torn down.
+    this.isRunning = false;
+
     // Clear crackle / murmur timeouts
     while (this.activeIntervals.length > 0) {
       const id = this.activeIntervals.pop();
       if (id) clearTimeout(id);
     }
 
-    // Stop and disconnect all active audio nodes
-    for (const node of this.activeNodes) {
-      try {
-        if ('stop' in node && typeof (node as AudioScheduledSourceNode).stop === 'function') {
-          (node as AudioScheduledSourceNode).stop();
-        }
-        node.disconnect();
-      } catch {
-        // Ignore already stopped
-      }
-    }
+    const nodes = this.activeNodes;
+    const gainNode = this.gainNode;
     this.activeNodes = [];
+    this.gainNode = null;
 
-    if (this.gainNode) {
-      try {
-        this.gainNode.disconnect();
-      } catch {
-        // Ignore
+    const teardown = () => {
+      for (const node of nodes) {
+        try {
+          if ('stop' in node && typeof (node as AudioScheduledSourceNode).stop === 'function') {
+            (node as AudioScheduledSourceNode).stop();
+          }
+          node.disconnect();
+        } catch {
+          // Ignore already stopped
+        }
       }
-      this.gainNode = null;
+      if (gainNode) {
+        try {
+          gainNode.disconnect();
+        } catch {
+          // Ignore
+        }
+      }
+    };
+
+    // Cutting a looping waveform dead mid-cycle is an audible click, and pausing or
+    // switching sounds did exactly that. Fade out first, then tear the graph down.
+    if (this.ctx && gainNode) {
+      try {
+        const now = this.ctx.currentTime;
+        gainNode.gain.cancelScheduledValues(now);
+        gainNode.gain.setValueAtTime(Math.max(gainNode.gain.value, 0.0001), now);
+        gainNode.gain.exponentialRampToValueAtTime(0.0001, now + FADE_OUT_SECONDS);
+        window.setTimeout(teardown, FADE_OUT_SECONDS * 1000 + 20);
+        return;
+      } catch {
+        // Fall through to an immediate teardown.
+      }
     }
 
-    this.isRunning = false;
+    teardown();
   }
 
   public active(): boolean {
     return this.isRunning;
   }
 
+  /** Remember a soundscape picked while nothing is playing, so the UI can restore it. */
+  public setPendingType(type: AmbientSoundType): void {
+    this.currentType = type;
+  }
+
   public getType(): AmbientSoundType {
     return this.currentType;
+  }
+
+  public getVolume(): number {
+    return this.currentVolume;
   }
 }
 

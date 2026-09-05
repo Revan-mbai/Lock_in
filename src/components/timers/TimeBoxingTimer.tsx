@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, FormEvent } from 'react';
-import { Play, Pause, RotateCcw, SkipForward, Plus, Trash2, CheckCircle, Clock, Coffee, BookOpen, Sparkles } from 'lucide-react';
+import { Play, Pause, RotateCcw, SkipForward, Plus, Trash2, CheckCircle, Coffee, BookOpen, Sparkles } from 'lucide-react';
 import { formatTime } from '../../utils/formatters';
 import { playFocusCompleteChime, playBreakCompleteChime } from '../../utils/audio';
 import { TimeBoxItem, FocusSessionLog } from '../../types';
+import { loadTimeBoxingState, saveTimeBoxingState, MAX_LIVE_GAP_SECONDS } from '../../utils/timerPersistence';
 
 interface TimeBoxingTimerProps {
   onSessionComplete: (log: Omit<FocusSessionLog, 'id' | 'completedAt'>) => void;
@@ -18,11 +19,14 @@ const DEFAULT_BOXES: TimeBoxItem[] = [
 ];
 
 export function TimeBoxingTimer({ onSessionComplete, soundEnabled }: TimeBoxingTimerProps) {
-  const [boxes, setBoxes] = useState<TimeBoxItem[]>(DEFAULT_BOXES);
-  const [activeBoxIndex, setActiveBoxIndex] = useState(0);
-  const [timeLeft, setTimeLeft] = useState(DEFAULT_BOXES[0].durationMinutes * 60);
-  const [isRunning, setIsRunning] = useState(false);
-  const [autoShiftNext, setAutoShiftNext] = useState(true);
+  // Load saved state once on mount rather than re-parsing localStorage on every render.
+  const [saved] = useState(loadTimeBoxingState);
+
+  const [boxes, setBoxes] = useState<TimeBoxItem[]>(() => saved?.boxes ?? DEFAULT_BOXES);
+  const [activeBoxIndex, setActiveBoxIndex] = useState(() => saved?.activeBoxIndex ?? 0);
+  const [timeLeft, setTimeLeft] = useState(() => saved?.timeLeft ?? (saved?.boxes?.[saved.activeBoxIndex]?.durationMinutes ?? DEFAULT_BOXES[0].durationMinutes) * 60);
+  const [isRunning, setIsRunning] = useState(() => saved?.isRunning ?? false);
+  const [autoShiftNext, setAutoShiftNext] = useState(() => saved?.autoShiftNext ?? true);
 
   // New box form modal / inline
   const [newTitle, setNewTitle] = useState('');
@@ -31,44 +35,107 @@ export function TimeBoxingTimer({ onSessionComplete, soundEnabled }: TimeBoxingT
   const [showAddForm, setShowAddForm] = useState(false);
 
   const [transitionNotification, setTransitionNotification] = useState<string | null>(null);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastTickRef = useRef<number>(Date.now());
+  const notificationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // What the Skip click currently being processed acted on. Cleared after every commit below,
+  // so it lives exactly as long as the double-click window it guards.
+  const lastSkipSignatureRef = useRef<string | null>(null);
+  // Guards the box transition so a single expiry can only fire it once. Starts false: the
+  // loader only returns isRunning with timeLeft at 0 when the block really did run out while
+  // the app was briefly away, and that session still deserves to be logged.
+  const transitionFiredRef = useRef(false);
+
+  // Show a transition banner, replacing any banner still counting down.
+  const showTransitionNotification = (message: string) => {
+    setTransitionNotification(message);
+    if (notificationTimeoutRef.current) clearTimeout(notificationTimeoutRef.current);
+    notificationTimeoutRef.current = setTimeout(() => {
+      setTransitionNotification(null);
+      notificationTimeoutRef.current = null;
+    }, 4000);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (notificationTimeoutRef.current) clearTimeout(notificationTimeoutRef.current);
+    };
+  }, []);
+
+  // No dependency array on purpose: the Skip guard only has to outlive clicks dispatched
+  // before React re-rendered. Holding the signature any longer killed the button for any
+  // later click that repeated an index:timeLeft pair — and those repeat constantly, since
+  // every path that re-arms a box parks it at exactly its full duration.
+  useEffect(() => {
+    lastSkipSignatureRef.current = null;
+  });
+
+  // Save changes to localStorage
+  useEffect(() => {
+    saveTimeBoxingState({
+      boxes,
+      activeBoxIndex,
+      timeLeft,
+      isRunning,
+      autoShiftNext,
+    });
+  }, [boxes, activeBoxIndex, timeLeft, isRunning, autoShiftNext]);
 
   const activeBox = boxes[activeBoxIndex] || boxes[0];
   const activeBoxTotalSeconds = activeBox ? activeBox.durationMinutes * 60 : 1800;
+
+  // Derived from persisted state rather than held in a ref: a ref is lost on reload, and the
+  // exhausted schedule survives it, so Skip would re-log the final box after every refresh.
+  const scheduleFinished =
+    boxes.length > 0 &&
+    activeBoxIndex === boxes.length - 1 &&
+    Boolean(boxes[activeBoxIndex]?.completed);
   const progressPercent = Math.min(100, Math.max(0, ((activeBoxTotalSeconds - timeLeft) / activeBoxTotalSeconds) * 100));
 
-  // Advance to next box
-  const handleBoxComplete = (indexCompleted: number) => {
+  // Advance to next box. `elapsedSeconds` is the time actually spent on the box, so
+  // skipping early logs what was really studied instead of the box's full length.
+  const handleBoxComplete = (indexCompleted: number, elapsedSeconds: number) => {
     const completedItem = boxes[indexCompleted];
+    const nextIndex = indexCompleted + 1;
 
-    // Mark as completed
-    const updatedBoxes = boxes.map((b, idx) => 
-      idx === indexCompleted ? { ...b, completed: true } : b
-    );
+    // Tick off the finished box, and clear the tick on the one starting next so its own
+    // completion is credited normally when it ends.
+    const updatedBoxes = boxes.map((b, idx) => {
+      if (idx === indexCompleted) return { ...b, completed: true };
+      if (idx === nextIndex && b.completed) return { ...b, completed: false };
+      return b;
+    });
     setBoxes(updatedBoxes);
 
-    if (completedItem && !completedItem.isBreak) {
-      onSessionComplete({
-        methodId: 'time-boxing',
-        methodName: 'Time Boxing',
-        taskTitle: completedItem.title,
-        durationMinutes: completedItem.durationMinutes,
-        phase: 'work',
-      });
+    // A box still carrying its tick has already been credited once. Every path that gives a
+    // box a fresh countdown clears the flag first, so this only ever catches a genuine repeat
+    // — such as Skip pressed again on a schedule that has already run out.
+    const isRepeatCompletion = Boolean(completedItem?.completed);
+
+    if (completedItem && !completedItem.isBreak && !isRepeatCompletion) {
+      const focusedMinutes = Math.round(elapsedSeconds / 60);
+      if (focusedMinutes >= 1) {
+        onSessionComplete({
+          methodId: 'time-boxing',
+          methodName: 'Time Boxing',
+          taskTitle: completedItem.title,
+          durationMinutes: focusedMinutes,
+          phase: 'work',
+        });
+      }
       if (soundEnabled) playFocusCompleteChime();
-    } else {
+    } else if (!isRepeatCompletion) {
       if (soundEnabled) playBreakCompleteChime();
     }
 
     // Check if there is a next box
-    const nextIndex = indexCompleted + 1;
     if (nextIndex < boxes.length) {
       const nextBox = boxes[nextIndex];
       setActiveBoxIndex(nextIndex);
       setTimeLeft(nextBox.durationMinutes * 60);
 
-      setTransitionNotification(
-        `"${completedItem.title}" completed! Automatically shifting into "${nextBox.title}" (${nextBox.durationMinutes}m).`
+      showTransitionNotification(
+        `"${completedItem.title}" done. Starting "${nextBox.title}" (${nextBox.durationMinutes}m).`
       );
 
       if (autoShiftNext) {
@@ -77,53 +144,124 @@ export function TimeBoxingTimer({ onSessionComplete, soundEnabled }: TimeBoxingT
         setIsRunning(false);
       }
     } else {
-      // All boxes finished!
+      // All boxes finished. Park the clock at zero so the exhausted schedule cannot be
+      // mistaken for a box that still has time left on it.
       setIsRunning(false);
-      setTransitionNotification('All scheduled study boxes for this session are complete! Exceptional focus.');
+      setTimeLeft(0);
+      showTransitionNotification('All scheduled boxes completed.');
     }
-
-    setTimeout(() => {
-      setTransitionNotification(null);
-    }, 7000);
   };
 
+  // The updater stays pure — scheduling the box transition from inside it made React run
+  // the transition twice under StrictMode, which logged every completed box twice.
   useEffect(() => {
-    if (isRunning) {
-      timerRef.current = setInterval(() => {
-        setTimeLeft((prev) => {
-          if (prev <= 1) {
-            handleBoxComplete(activeBoxIndex);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    } else if (timerRef.current) {
-      clearInterval(timerRef.current);
-    }
+    if (!isRunning) return;
+
+    lastTickRef.current = Date.now();
+
+    const tick = () => {
+      // Advance by whole seconds and carry the sub-second remainder. Rounding (and flooring
+      // at 1) meant the extra visibilitychange tick could charge a full second for a few
+      // milliseconds, so the countdown ran fast on every tab switch.
+      const delta = Math.floor((Date.now() - lastTickRef.current) / 1000);
+      if (delta <= 0) return;
+      lastTickRef.current += delta * 1000;
+      if (delta > MAX_LIVE_GAP_SECONDS) {
+        // Far more time passed than any block can span, so the machine was asleep rather
+        // than the tab merely backgrounded. Pause instead of banking a session.
+        setIsRunning(false);
+        return;
+      }
+      setTimeLeft((prev) => Math.max(0, prev - delta));
+    };
+
+    timerRef.current = setInterval(tick, 1000);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        tick();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
+      timerRef.current = null;
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [isRunning, activeBoxIndex, boxes, autoShiftNext]);
+  }, [isRunning]);
+
+  // Advance to the next box once the countdown reaches zero.
+  useEffect(() => {
+    if (timeLeft > 0) {
+      transitionFiredRef.current = false;
+      return;
+    }
+    if (!isRunning || transitionFiredRef.current) return;
+    transitionFiredRef.current = true;
+    handleBoxComplete(activeBoxIndex, activeBoxTotalSeconds);
+  }, [timeLeft, isRunning, activeBoxIndex, activeBoxTotalSeconds]);
 
   const handleSelectBox = (index: number) => {
+    // Re-selecting the box already running would reset its countdown and pause it, so a
+    // stray click anywhere on the active row threw away the progress on it.
+    if (index === activeBoxIndex) return;
     setActiveBoxIndex(index);
+    // Picking a finished box means running it again, so drop its tick — otherwise the repeat
+    // guard above would treat the re-run as already logged.
+    if (boxes[index].completed) {
+      setBoxes(boxes.map((b, i) => (i === index ? { ...b, completed: false } : b)));
+    }
     setTimeLeft(boxes[index].durationMinutes * 60);
     setIsRunning(false);
   };
 
-  const handleStartPause = () => setIsRunning(!isRunning);
+  const handleStartPause = () => {
+    if (!isRunning && scheduleFinished) {
+      // Every box was ticked off and the completed flags were never cleared, leaving the
+      // schedule permanently finished. Starting again runs the whole plan from the top.
+        setBoxes(boxes.map((b) => (b.completed ? { ...b, completed: false } : b)));
+      setActiveBoxIndex(0);
+      setTimeLeft(boxes[0].durationMinutes * 60);
+      setIsRunning(true);
+      return;
+    }
+    if (!isRunning) {
+      // Pressing Play on an exhausted box restarts it rather than instantly re-completing it
+      // and logging a phantom full-duration session.
+      if (timeLeft <= 0) {
+        setTimeLeft(activeBoxTotalSeconds);
+      }
+      // Starting a box that still carries its tick means running it again — keyed off the
+      // flag, not the clock, because an early skip leaves time on it.
+      if (boxes[activeBoxIndex]?.completed) {
+        setBoxes(boxes.map((b, i) => (i === activeBoxIndex ? { ...b, completed: false } : b)));
+      }
+    }
+    setIsRunning(!isRunning);
+  };
 
   const handleReset = () => {
     setIsRunning(false);
     if (activeBox) {
       setTimeLeft(activeBox.durationMinutes * 60);
+      // A reset box is being run again from the top, so it is no longer a completed one.
+      setBoxes(boxes.map((b, i) => (i === activeBoxIndex && b.completed ? { ...b, completed: false } : b)));
     }
   };
 
   const handleSkip = () => {
-    handleBoxComplete(activeBoxIndex);
+    // The final box has already been completed and logged; skipping again would log it once
+    // more on every click.
+    if (scheduleFinished) return;
+    // Clicks dispatched before React re-renders share this closure, so a fast double-click
+    // would credit the same box twice. Compare what this click is about to do rather than
+    // latching a flag: a latch has to be un-set somewhere, and every miss leaves Skip dead.
+    const signature = `${activeBoxIndex}:${timeLeft}`;
+    if (lastSkipSignatureRef.current === signature) return;
+    lastSkipSignatureRef.current = signature;
+    // Credit only the time actually spent, not the box's full length.
+    handleBoxComplete(activeBoxIndex, activeBoxTotalSeconds - timeLeft);
   };
 
   const handleAddBox = (e: FormEvent) => {
@@ -148,12 +286,22 @@ export function TimeBoxingTimer({ onSessionComplete, soundEnabled }: TimeBoxingT
   const handleDeleteBox = (id: string, index: number) => {
     if (boxes.length <= 1) return;
     const filtered = boxes.filter((b) => b.id !== id);
-    setBoxes(filtered);
+
     if (index === activeBoxIndex) {
-      setActiveBoxIndex(0);
-      setTimeLeft(filtered[0].durationMinutes * 60);
+      // Move on to the box that took its place — falling back to the last one when the
+      // schedule's final box was removed. Jumping back to box 1 restarted the whole plan.
+      const nextIndex = Math.min(index, filtered.length - 1);
+      // It gets a fresh countdown, so clear any tick it is still carrying.
+      setBoxes(filtered.map((b, i) => (i === nextIndex && b.completed ? { ...b, completed: false } : b)));
+      setActiveBoxIndex(nextIndex);
+      setTimeLeft(filtered[nextIndex].durationMinutes * 60);
       setIsRunning(false);
-    } else if (index < activeBoxIndex) {
+      return;
+    }
+
+    setBoxes(filtered);
+    if (index < activeBoxIndex) {
+      // Everything after the removed box shifts down one.
       setActiveBoxIndex(activeBoxIndex - 1);
     }
   };
@@ -190,7 +338,7 @@ export function TimeBoxingTimer({ onSessionComplete, soundEnabled }: TimeBoxingT
             <span>Box {activeBoxIndex + 1} of {boxes.length}</span>
             <span>&bull;</span>
             <span className={activeBox?.isBreak ? 'text-[#58705C] font-semibold' : 'text-[#B45309] font-semibold'}>
-              {activeBox?.isBreak ? 'Break Buffer' : 'Focus Task'}
+              {activeBox?.isBreak ? 'Break' : 'Focus'}
             </span>
           </div>
           <h2 className="text-lg sm:text-xl font-medium text-[#1C1917]">
@@ -222,7 +370,7 @@ export function TimeBoxingTimer({ onSessionComplete, soundEnabled }: TimeBoxingT
                 {formatTime(timeLeft)}
               </span>
               <span className="text-xs font-medium uppercase tracking-widest text-[#78716C] mt-2">
-                {activeBox?.isBreak ? 'Break Window' : 'Boxed Focus'}
+                {activeBox?.isBreak ? 'Break' : 'Focus'}
               </span>
               <span className="text-[11px] text-[#A8A29E] mt-1">
                 {autoShiftNext ? 'Auto-shifts into next box' : 'Manual shift'}
@@ -236,7 +384,7 @@ export function TimeBoxingTimer({ onSessionComplete, soundEnabled }: TimeBoxingT
           <button
             id="timebox-reset-btn"
             onClick={handleReset}
-            title="Reset active box timer"
+            title="Reset timer"
             className="p-3 rounded-full border border-[#E7E3DC] text-[#78716C] hover:text-[#292524] hover:bg-[#F7F5F0] transition-colors"
           >
             <RotateCcw className="w-4 h-4" />
@@ -254,12 +402,18 @@ export function TimeBoxingTimer({ onSessionComplete, soundEnabled }: TimeBoxingT
             {isRunning ? (
               <>
                 <Pause className="w-4 h-4 fill-current" />
-                <span>Pause Box</span>
+                <span>Pause</span>
               </>
             ) : (
               <>
                 <Play className="w-4 h-4 fill-current ml-0.5" />
-                <span>{timeLeft < activeBoxTotalSeconds ? 'Resume' : 'Start Active Box'}</span>
+                <span>
+                  {scheduleFinished
+                    ? 'Restart'
+                    : timeLeft < activeBoxTotalSeconds
+                      ? 'Resume'
+                      : 'Start'}
+                </span>
               </>
             )}
           </button>
@@ -267,7 +421,7 @@ export function TimeBoxingTimer({ onSessionComplete, soundEnabled }: TimeBoxingT
           <button
             id="timebox-skip-btn"
             onClick={handleSkip}
-            title="Complete & shift to next box"
+            title="Skip to next box"
             className="p-3 rounded-full border border-[#E7E3DC] text-[#78716C] hover:text-[#292524] hover:bg-[#F7F5F0] transition-colors"
           >
             <SkipForward className="w-4 h-4" />
@@ -277,7 +431,7 @@ export function TimeBoxingTimer({ onSessionComplete, soundEnabled }: TimeBoxingT
         {/* Auto shift toggle */}
         <div className="mt-8 pt-4 border-t border-[#F0ECE4] flex items-center justify-between text-xs text-[#78716C]">
           <div className="flex items-center gap-2">
-            <span>Session: <strong className="text-[#292524]">{totalStudyMinutes}m study</strong> + {totalBreakMinutes}m breaks</span>
+            <span>Session: <strong className="text-[#292524]">{totalStudyMinutes}m focus</strong>, {totalBreakMinutes}m break</span>
           </div>
           <label className="flex items-center gap-2 cursor-pointer select-none">
             <input
@@ -287,7 +441,7 @@ export function TimeBoxingTimer({ onSessionComplete, soundEnabled }: TimeBoxingT
               onChange={(e) => setAutoShiftNext(e.target.checked)}
               className="w-3.5 h-3.5 rounded accent-[#B45309]"
             />
-            <span>Auto-shift to next box</span>
+            <span>Auto-shift</span>
           </label>
         </div>
       </div>
@@ -296,8 +450,8 @@ export function TimeBoxingTimer({ onSessionComplete, soundEnabled }: TimeBoxingT
       <div className="bg-[#FFFFFF] border border-[#E7E3DC] rounded-2xl p-6 shadow-xs space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-sm font-semibold text-[#1C1917]">Scheduled Time Boxes</h3>
-            <p className="text-xs text-[#78716C]">Click any box to switch active timer or add new study blocks</p>
+            <h3 className="text-sm font-semibold text-[#1C1917]">Scheduled Boxes</h3>
+            <p className="text-xs text-[#78716C]">Click any box to switch or add blocks</p>
           </div>
           <button
             id="timebox-add-toggle-btn"
@@ -312,13 +466,13 @@ export function TimeBoxingTimer({ onSessionComplete, soundEnabled }: TimeBoxingT
         {/* Add Box Form */}
         {showAddForm && (
           <form onSubmit={handleAddBox} className="p-4 rounded-xl bg-[#FAF8F5] border border-[#E7E3DC] space-y-3 text-xs">
-            <div className="font-medium text-[#292524]">Create New Time Box</div>
+            <div className="font-medium text-[#292524]">New Time Box</div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <input
                 type="text"
                 value={newTitle}
                 onChange={(e) => setNewTitle(e.target.value)}
-                placeholder="Subject or activity name..."
+                placeholder="Title..."
                 required
                 className="sm:col-span-2 px-3 py-2 rounded-lg border border-[#E7E3DC] bg-white text-xs focus:outline-none focus:border-[#B45309]"
               />
@@ -343,7 +497,7 @@ export function TimeBoxingTimer({ onSessionComplete, soundEnabled }: TimeBoxingT
                   onChange={(e) => setNewIsBreak(e.target.checked)}
                   className="rounded accent-[#58705C]"
                 />
-                <span>This box is a break / buffer</span>
+                <span>Break / buffer</span>
               </label>
 
               <div className="flex gap-2">
@@ -358,7 +512,7 @@ export function TimeBoxingTimer({ onSessionComplete, soundEnabled }: TimeBoxingT
                   type="submit"
                   className="px-4 py-1.5 rounded-lg bg-[#1C1917] text-[#FAF8F5] text-xs font-medium hover:bg-[#2E2A27]"
                 >
-                  Add to Schedule
+                  Add Box
                 </button>
               </div>
             </div>
@@ -410,9 +564,9 @@ export function TimeBoxingTimer({ onSessionComplete, soundEnabled }: TimeBoxingT
                       )}
                     </div>
                     <div className="text-[11px] text-[#78716C] flex items-center gap-2">
-                      <span>{box.durationMinutes} min</span>
+                      <span>{box.durationMinutes}m</span>
                       <span>&bull;</span>
-                      <span>{box.isBreak ? 'Rest' : 'Study block'}</span>
+                      <span>{box.isBreak ? 'Break' : 'Focus'}</span>
                     </div>
                   </div>
                 </div>
