@@ -37,16 +37,16 @@ export function MethodDetailView({
           <button
             id={`back-to-overview-btn-${methodId}`}
             onClick={onBackToOverview}
-            className="inline-flex items-center gap-1.5 text-xs font-medium text-[#78716C] hover:text-[#1C1917] transition-colors"
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-ink-muted hover:text-ink transition-colors"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>All Methods</span>
           </button>
 
-          <div className="hidden sm:flex items-center gap-1.5 text-xs text-[#A8A29E]">
+          <div className="hidden sm:flex items-center gap-1.5 text-xs text-ink-faint">
             <span>Methods</span>
             <ChevronRight className="w-3 h-3" />
-            <span className="text-[#44403C] font-medium">{method.name}</span>
+            <span className="text-ink-secondary font-medium">{method.name}</span>
           </div>
         </div>
       )}
@@ -54,17 +54,17 @@ export function MethodDetailView({
       {/* Method Intro Heading (hidden or minimized in Zen Mode) */}
       {!isZenMode && (
         <div className="text-center space-y-2 max-w-xl mx-auto">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-[#EFECE6] text-[#57534E]">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-surface-muted text-ink-secondary">
             <span>{method.focusTimeDisplay} Focus</span>
             <span>&bull;</span>
             <span>{method.breakTimeDisplay} Break</span>
           </div>
 
-          <h1 className="text-2xl sm:text-3xl font-serif font-medium text-[#1C1917]">
+          <h1 className="text-2xl sm:text-3xl font-serif font-medium text-ink">
             {method.name}
           </h1>
 
-          <p className="text-xs sm:text-sm text-[#57534E]">
+          <p className="text-xs sm:text-sm text-ink-secondary">
             {method.tagline}
           </p>
         </div>
@@ -108,15 +108,15 @@ export function MethodDetailView({
       {!isZenMode && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-4">
           {/* How to execute */}
-          <div className="bg-[#FFFFFF] border border-[#E7E3DC] rounded-2xl p-5 space-y-2.5">
-            <h3 className="text-xs font-semibold text-[#1C1917] flex items-center gap-1.5 uppercase tracking-wider">
-              <CheckCircle2 className="w-3.5 h-3.5 text-[#58705C]" />
+          <div className="bg-surface border border-line rounded-2xl p-5 space-y-2.5">
+            <h3 className="text-xs font-semibold text-ink flex items-center gap-1.5 uppercase tracking-wider">
+              <CheckCircle2 className="w-3.5 h-3.5 text-accent-break" />
               <span>How It Works</span>
             </h3>
-            <ul className="space-y-1.5 text-xs text-[#57534E]">
+            <ul className="space-y-1.5 text-xs text-ink-secondary">
               {method.howItWorks.map((step, idx) => (
                 <li key={idx} className="flex items-start gap-2">
-                  <span className="font-semibold text-[#1C1917] shrink-0">{idx + 1}.</span>
+                  <span className="font-semibold text-ink shrink-0">{idx + 1}.</span>
                   <span>{step}</span>
                 </li>
               ))}
@@ -124,15 +124,15 @@ export function MethodDetailView({
           </div>
 
           {/* Cognitive Science Note */}
-          <div className="bg-[#FFFFFF] border border-[#E7E3DC] rounded-2xl p-5 space-y-2.5">
-            <h3 className="text-xs font-semibold text-[#1C1917] flex items-center gap-1.5 uppercase tracking-wider">
-              <Lightbulb className="w-3.5 h-3.5 text-[#C86D51]" />
+          <div className="bg-surface border border-line rounded-2xl p-5 space-y-2.5">
+            <h3 className="text-xs font-semibold text-ink flex items-center gap-1.5 uppercase tracking-wider">
+              <Lightbulb className="w-3.5 h-3.5 text-accent-focus" />
               <span>Why It Works</span>
             </h3>
-            <p className="text-xs text-[#57534E] leading-relaxed">
+            <p className="text-xs text-ink-secondary leading-relaxed">
               {method.scienceNote}
             </p>
-            <div className="pt-2 text-[11px] text-[#78716C] border-t border-[#F5F2EC]">
+            <div className="pt-2 text-[11px] text-ink-muted border-t border-line-subtle">
               {method.origin}
             </div>
           </div>
@@ -141,8 +141,8 @@ export function MethodDetailView({
 
       {/* Switch to another study method (hidden in Zen Mode) */}
       {!isZenMode && (
-        <div className="pt-6 border-t border-[#EAE5DC] space-y-3">
-          <div className="text-xs font-semibold text-[#78716C] uppercase tracking-wider">
+        <div className="pt-6 border-t border-line space-y-3">
+          <div className="text-xs font-semibold text-ink-muted uppercase tracking-wider">
             Other Methods
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
@@ -151,10 +151,10 @@ export function MethodDetailView({
                 key={om.id}
                 id={`switch-to-${om.id}-btn`}
                 onClick={() => onSelectMethod(om.id)}
-                className="p-2.5 rounded-xl bg-white border border-[#E7E3DC] hover:border-[#D4CEBF] text-left transition-all hover:bg-[#FAF8F5] shadow-xs"
+                className="p-2.5 rounded-xl bg-surface border border-line hover:border-line-strong text-left transition-all hover:bg-canvas shadow-xs"
               >
-                <div className="font-medium text-xs text-[#1C1917] truncate">{om.name}</div>
-                <div className="text-[11px] text-[#78716C] mt-0.5">{om.focusTimeDisplay} focus</div>
+                <div className="font-medium text-xs text-ink truncate">{om.name}</div>
+                <div className="text-[11px] text-ink-muted mt-0.5">{om.focusTimeDisplay} focus</div>
               </button>
             ))}
           </div>

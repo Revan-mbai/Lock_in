@@ -196,16 +196,16 @@ export function NinetyMinTimer({ onSessionComplete, soundEnabled }: NinetyMinTim
       {transitionNotification && (
         <div 
           id="ninety-min-transition-alert"
-          className="p-4 rounded-xl bg-[#EFECE6] border border-[#DDD7CD] text-[#2C2926] text-sm flex items-center justify-between shadow-xs transition-all"
+          className="p-4 rounded-xl bg-surface-muted border border-line-strong text-ink-body text-sm flex items-center justify-between shadow-xs transition-all"
         >
           <div className="flex items-center gap-3">
-            <Sparkles className="w-4 h-4 text-[#7C6F5A] shrink-0" />
+            <Sparkles className="w-4 h-4 text-accent-deep shrink-0" />
             <span className="font-medium">{transitionNotification}</span>
           </div>
           <button 
             id="dismiss-ninety-min-alert"
             onClick={() => setTransitionNotification(null)}
-            className="text-xs text-[#78716C] hover:text-[#292524] underline ml-3"
+            className="text-xs text-ink-muted hover:text-ink-body underline ml-3"
           >
             Dismiss
           </button>
@@ -213,7 +213,7 @@ export function NinetyMinTimer({ onSessionComplete, soundEnabled }: NinetyMinTim
       )}
 
       {/* Main Card */}
-      <div className="bg-[#FFFFFF] border border-[#E7E3DC] rounded-2xl p-6 sm:p-10 shadow-xs relative overflow-hidden">
+      <div className="bg-surface border border-line rounded-2xl p-6 sm:p-10 shadow-xs relative overflow-hidden">
         {/* Phase selector tabs */}
         <div className="flex items-center justify-center gap-2 mb-8">
           <button
@@ -227,8 +227,8 @@ export function NinetyMinTimer({ onSessionComplete, soundEnabled }: NinetyMinTim
             }}
             className={`px-4 py-1.5 rounded-full text-xs sm:text-sm font-medium transition-all ${
               phase === 'work'
-                ? 'bg-[#2B2724] text-[#FAF8F5]'
-                : 'text-[#78716C] hover:text-[#292524] bg-[#F7F5F0]'
+                ? 'bg-ink text-canvas'
+                : 'text-ink-muted hover:text-ink-body bg-surface-subtle'
             }`}
           >
             Focus (90m)
@@ -244,8 +244,8 @@ export function NinetyMinTimer({ onSessionComplete, soundEnabled }: NinetyMinTim
             }}
             className={`px-4 py-1.5 rounded-full text-xs sm:text-sm font-medium transition-all ${
               phase === 'break'
-                ? 'bg-[#7C6F5A] text-[#FAF8F5]'
-                : 'text-[#78716C] hover:text-[#292524] bg-[#F7F5F0]'
+                ? 'bg-accent-deep text-canvas'
+                : 'text-ink-muted hover:text-ink-body bg-surface-subtle'
             }`}
           >
             Break (20m)
@@ -254,7 +254,7 @@ export function NinetyMinTimer({ onSessionComplete, soundEnabled }: NinetyMinTim
 
         {/* Task Focus Input */}
         <div className="max-w-md mx-auto mb-8">
-          <label htmlFor="ninety-task-input" className="block text-center text-xs tracking-wider uppercase text-[#78716C] mb-2 font-medium">
+          <label htmlFor="ninety-task-input" className="block text-center text-xs tracking-wider uppercase text-ink-muted mb-2 font-medium">
             {phase === 'work' ? 'Task' : 'Break'}
           </label>
           {phase === 'work' ? (
@@ -264,10 +264,10 @@ export function NinetyMinTimer({ onSessionComplete, soundEnabled }: NinetyMinTim
               value={taskSubject}
               onChange={(e) => setTaskSubject(e.target.value)}
               placeholder="e.g. Drafting chapter 2..."
-              className="w-full text-center px-4 py-2.5 rounded-xl border border-[#E7E3DC] bg-[#FAF8F5] text-sm text-[#292524] placeholder-[#A8A29E] focus:outline-none focus:border-[#7C6F5A] transition-colors"
+              className="w-full text-center px-4 py-2.5 rounded-xl border border-line bg-canvas text-sm text-ink-body placeholder-ink-faint focus:outline-none focus:border-accent-deep transition-colors"
             />
           ) : (
-            <p className="text-center text-sm font-serif italic text-[#7C6F5A]">
+            <p className="text-center text-sm font-serif italic text-accent-deep">
               Walk, stretch, or hydrate without screens.
             </p>
           )}
@@ -277,12 +277,12 @@ export function NinetyMinTimer({ onSessionComplete, soundEnabled }: NinetyMinTim
         <div className="flex flex-col items-center justify-center my-6">
           <div className="relative w-64 h-64 sm:w-72 sm:h-72 flex items-center justify-center">
             <svg className="w-full h-full -rotate-90 transform" viewBox="0 0 100 100">
-              <circle cx="50" cy="50" r="44" stroke="#F0ECE4" strokeWidth="4" fill="transparent" />
+              <circle cx="50" cy="50" r="44" stroke="var(--color-track)" strokeWidth="4" fill="transparent" />
               <circle
                 cx="50"
                 cy="50"
                 r="44"
-                stroke={phase === 'work' ? '#7C6F5A' : '#58705C'}
+                stroke={phase === 'work' ? 'var(--color-accent-deep)' : 'var(--color-accent-break)'}
                 strokeWidth="4"
                 strokeLinecap="round"
                 fill="transparent"
@@ -293,13 +293,13 @@ export function NinetyMinTimer({ onSessionComplete, soundEnabled }: NinetyMinTim
             </svg>
 
             <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-              <span id="ninety-min-digits" className="font-mono text-4xl sm:text-5xl font-semibold tracking-tight text-[#1C1917]">
+              <span id="ninety-min-digits" className="font-mono text-4xl sm:text-5xl font-semibold tracking-tight text-ink">
                 {formatTimeWithHours(timeLeft)}
               </span>
-              <span className="text-xs font-medium uppercase tracking-widest text-[#78716C] mt-2">
+              <span className="text-xs font-medium uppercase tracking-widest text-ink-muted mt-2">
                 {phase === 'work' ? 'Focus' : 'Break'}
               </span>
-              <span className="text-[11px] text-[#A8A29E] mt-1">
+              <span className="text-[11px] text-ink-faint mt-1">
                 {autoStartNext ? 'Auto-shifts into break' : 'Manual shift'}
               </span>
             </div>
@@ -308,20 +308,20 @@ export function NinetyMinTimer({ onSessionComplete, soundEnabled }: NinetyMinTim
 
         {/* Ultradian Stage Tracker */}
         {phase === 'work' && (
-          <div className="max-w-md mx-auto my-4 p-3 rounded-xl bg-[#FAF8F5] border border-[#E7E3DC] text-xs">
-            <div className="flex items-center justify-between text-[#78716C] mb-1.5">
-              <span className="flex items-center gap-1.5 font-medium text-[#292524]">
-                <Activity className="w-3.5 h-3.5 text-[#7C6F5A]" />
+          <div className="max-w-md mx-auto my-4 p-3 rounded-xl bg-canvas border border-line text-xs">
+            <div className="flex items-center justify-between text-ink-muted mb-1.5">
+              <span className="flex items-center gap-1.5 font-medium text-ink-body">
+                <Activity className="w-3.5 h-3.5 text-accent-deep" />
                 Phase:
               </span>
               <span className="font-mono">{Math.floor(elapsedWorkMinutes)} / 90m</span>
             </div>
-            <div className="font-medium text-[#7C6F5A]">{ultradianStage}</div>
+            <div className="font-medium text-accent-deep">{ultradianStage}</div>
             {/* 3-segment progress meter */}
             <div className="grid grid-cols-3 gap-1.5 mt-2">
-              <div className={`h-1.5 rounded-full ${elapsedWorkMinutes > 0 ? 'bg-[#7C6F5A]' : 'bg-[#E7E3DC]'}`} />
-              <div className={`h-1.5 rounded-full ${elapsedWorkMinutes >= 15 ? 'bg-[#7C6F5A]' : 'bg-[#E7E3DC]'}`} />
-              <div className={`h-1.5 rounded-full ${elapsedWorkMinutes >= 75 ? 'bg-[#7C6F5A]' : 'bg-[#E7E3DC]'}`} />
+              <div className={`h-1.5 rounded-full ${elapsedWorkMinutes > 0 ? 'bg-accent-deep' : 'bg-line'}`} />
+              <div className={`h-1.5 rounded-full ${elapsedWorkMinutes >= 15 ? 'bg-accent-deep' : 'bg-line'}`} />
+              <div className={`h-1.5 rounded-full ${elapsedWorkMinutes >= 75 ? 'bg-accent-deep' : 'bg-line'}`} />
             </div>
           </div>
         )}
@@ -332,7 +332,7 @@ export function NinetyMinTimer({ onSessionComplete, soundEnabled }: NinetyMinTim
             id="ninety-min-reset-btn"
             onClick={handleReset}
             title="Reset timer"
-            className="p-3 rounded-full border border-[#E7E3DC] text-[#78716C] hover:text-[#292524] hover:bg-[#F7F5F0] transition-colors"
+            className="p-3 rounded-full border border-line text-ink-muted hover:text-ink-body hover:bg-surface-subtle transition-colors"
           >
             <RotateCcw className="w-4 h-4" />
           </button>
@@ -342,8 +342,8 @@ export function NinetyMinTimer({ onSessionComplete, soundEnabled }: NinetyMinTim
             onClick={handleStartPause}
             className={`px-8 py-3.5 rounded-full font-medium text-sm flex items-center gap-2.5 transition-all shadow-xs ${
               isRunning
-                ? 'bg-[#EFECE6] text-[#292524] hover:bg-[#E5E0D8]'
-                : 'bg-[#1C1917] text-[#FAF8F5] hover:bg-[#2E2A27]'
+                ? 'bg-surface-muted text-ink-body hover:bg-surface-active'
+                : 'bg-ink text-canvas hover:bg-ink-hover'
             }`}
           >
             {isRunning ? (
@@ -363,16 +363,16 @@ export function NinetyMinTimer({ onSessionComplete, soundEnabled }: NinetyMinTim
             id="ninety-min-skip-btn"
             onClick={handleSkipPhase}
             title="Skip to next phase"
-            className="p-3 rounded-full border border-[#E7E3DC] text-[#78716C] hover:text-[#292524] hover:bg-[#F7F5F0] transition-colors"
+            className="p-3 rounded-full border border-line text-ink-muted hover:text-ink-body hover:bg-surface-subtle transition-colors"
           >
             <SkipForward className="w-4 h-4" />
           </button>
         </div>
 
         {/* Footer controls */}
-        <div className="mt-10 pt-6 border-t border-[#F0ECE4] flex items-center justify-between text-xs text-[#78716C]">
+        <div className="mt-10 pt-6 border-t border-track flex items-center justify-between text-xs text-ink-muted">
           <div className="flex items-center gap-1.5">
-            {phase === 'work' ? <Sun className="w-4 h-4 text-[#7C6F5A]" /> : <Moon className="w-4 h-4 text-[#58705C]" />}
+            {phase === 'work' ? <Sun className="w-4 h-4 text-accent-deep" /> : <Moon className="w-4 h-4 text-accent-break" />}
             <span>{phase === 'work' ? '90m Focus' : '20m Rest'}</span>
           </div>
 
@@ -382,7 +382,7 @@ export function NinetyMinTimer({ onSessionComplete, soundEnabled }: NinetyMinTim
               type="checkbox"
               checked={autoStartNext}
               onChange={(e) => setAutoStartNext(e.target.checked)}
-              className="w-3.5 h-3.5 rounded accent-[#7C6F5A]"
+              className="w-3.5 h-3.5 rounded accent-accent-deep"
             />
             <span>Auto-shift</span>
           </label>
@@ -390,12 +390,12 @@ export function NinetyMinTimer({ onSessionComplete, soundEnabled }: NinetyMinTim
       </div>
 
       {/* Science card */}
-      <div className="bg-[#FAF8F5] border border-[#E7E3DC] rounded-xl p-4 text-xs text-[#57534E] flex items-start gap-3">
-        <div className="p-1.5 rounded-md bg-[#EFECE6] text-[#7C6F5A] shrink-0 mt-0.5">
+      <div className="bg-canvas border border-line rounded-xl p-4 text-xs text-ink-secondary flex items-start gap-3">
+        <div className="p-1.5 rounded-md bg-surface-muted text-accent-deep shrink-0 mt-0.5">
           <Activity className="w-4 h-4" />
         </div>
         <div>
-          <span className="font-semibold text-[#1C1917]">Tip: </span>
+          <span className="font-semibold text-ink">Tip: </span>
           Alertness peaks in 90-minute waves. Stopping at 90 minutes prevents fatigue and cognitive burnout.
         </div>
       </div>

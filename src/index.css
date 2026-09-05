@@ -8,4 +8,130 @@
   --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-serif: 'Newsreader', ui-serif, Georgia, Cambria, 'Times New Roman', serif;
   --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* Semantic colour tokens, holding the light (warm paper) palette. Everything in the UI refers
+     to these rather than to raw hex, so a theme is a matter of redefining variables rather than
+     editing every component.
+
+     There is exactly ONE dark block, below. `index.html` stamps data-theme on <html> before the
+     first paint — resolving the stored preference, or the OS setting when there is none — so the
+     OS case needs no second copy of the palette. Two copies would be free to drift apart. */
+
+  /* Surfaces, from the page canvas up to the most raised fill */
+  --color-canvas: #faf8f5;
+  --color-surface: #ffffff;
+  --color-surface-subtle: #f7f5f0;
+  --color-surface-muted: #efece6;
+  --color-surface-hover: #f2efe9;
+  --color-surface-active: #e5e0d8;
+  --color-track: #f0ece4;
+  --color-selection: #e8dccf;
+
+  /* Lines */
+  --color-line: #e7e3dc;
+  --color-line-strong: #d4cebf;
+  --color-line-subtle: #f5f2ec;
+
+  /* Text, darkest to faintest. `ink` doubles as the fill of inverted buttons, whose label uses
+     `canvas` — that pairing inverts correctly in both themes. */
+  --color-ink: #1c1917;
+  --color-ink-hover: #2e2a27;
+  --color-ink-body: #292524;
+  --color-ink-secondary: #57534e;
+  --color-ink-muted: #78716c;
+  --color-ink-faint: #a8a29e;
+
+  /* Method accents */
+  --color-accent-focus: #c86d51;
+  --color-accent-break: #58705c;
+  --color-accent-break-hover: #475c4b;
+  --color-accent-deep: #7c6f5a;
+  --color-accent-box: #b45309;
+  --color-accent-sprint: #4a6b82;
+  --color-accent-danger: #dc2626;
+
+  /* "Timer is running" pill */
+  --color-live: #3d7a52;
+  --color-live-hover: #23472f;
+  --color-live-ink: #2d5a3c;
+  --color-live-bg: #e2ebe4;
+  --color-live-line: #c5d8c9;
+
+  /* Accent washes used as backgrounds */
+  --color-tint-focus: #faf3f0;
+  --color-tint-break: #f4f6f4;
+  --color-tint-break-line: #dce4dc;
+
+  /* Ambient soundscape icons */
+  --color-sound-rain: #3b82f6;
+  --color-sound-waves: #0d9488;
+  --color-sound-fire: #ea580c;
+  --color-sound-cafe: #92400e;
+  --color-sound-pink: #d97706;
+  --color-sound-alpha: #10b981;
+  --color-sound-white: #6b7280;
+
+  /* The offline pill inverts (dark chip on the light page), so its warning icon needs a value
+     that reads against the chip in each theme rather than against the page. */
+  --color-offline-icon: #f59e0b;
+}
+
+/* Neutral slate dark theme — the single source of the dark palette. */
+:root[data-theme='dark'] {
+  --color-canvas: #0f172a;
+  --color-surface: #1e293b;
+  --color-surface-subtle: #24334a;
+  --color-surface-muted: #2a3a52;
+  --color-surface-hover: #334155;
+  --color-surface-active: #3e4c63;
+  --color-track: #334155;
+  --color-selection: #3e4c63;
+
+  --color-line: #334155;
+  --color-line-strong: #4b5b72;
+  --color-line-subtle: #263449;
+
+  --color-ink: #f1f5f9;
+  --color-ink-hover: #cbd5e1;
+  --color-ink-body: #e2e8f0;
+  --color-ink-secondary: #cbd5e1;
+  --color-ink-muted: #94a3b8;
+  --color-ink-faint: #8fa0b6;
+
+  --color-accent-focus: #e68a6c;
+  --color-accent-break: #8fb596;
+  --color-accent-break-hover: #a7c9ad;
+  --color-accent-deep: #bcae93;
+  --color-accent-box: #e9932f;
+  --color-accent-sprint: #8ab0cc;
+  --color-accent-danger: #f87171;
+
+  --color-live: #5fbe81;
+  --color-live-hover: #86e0a3;
+  --color-live-ink: #86efac;
+  --color-live-bg: #1e3a2a;
+  --color-live-line: #2f5c41;
+
+  --color-tint-focus: #3a2a25;
+  --color-tint-break: #21332a;
+  --color-tint-break-line: #2f5c41;
+
+  --color-sound-rain: #7dabf8;
+  --color-sound-waves: #4bc7bb;
+  --color-sound-fire: #fb923c;
+  --color-sound-cafe: #d3a06a;
+  --color-sound-pink: #fbbf5c;
+  --color-sound-alpha: #4ade9b;
+  --color-sound-white: #a5b0c0;
+
+  --color-offline-icon: #b45309;
+}
+
+/* Let native UI — scrollbars, form controls, the ambient volume slider — match the theme. */
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
 }

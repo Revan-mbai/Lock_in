@@ -23,7 +23,7 @@ export const STUDY_METHODS: StudyMethodInfo[] = [
     ],
     autoShifts: true,
     scienceNote: 'Short, regular breaks stave off fatigue and sustain attention.',
-    accentColor: '#C86D51', // warm terracotta
+    accentColor: 'var(--color-accent-focus)', // warm terracotta
   },
   {
     id: 'flowtime',
@@ -47,7 +47,7 @@ export const STUDY_METHODS: StudyMethodInfo[] = [
     ],
     autoShifts: false,
     scienceNote: 'Protects deep flow by avoiding arbitrary timer interruptions.',
-    accentColor: '#58705C', // warm sage green
+    accentColor: 'var(--color-accent-break)', // warm sage green
   },
   {
     id: 'ninety-min',
@@ -71,7 +71,7 @@ export const STUDY_METHODS: StudyMethodInfo[] = [
     ],
     autoShifts: true,
     scienceNote: 'Matches biological rest-activity cycles to replenish neural energy.',
-    accentColor: '#7C6F5A', // warm earthen bronze
+    accentColor: 'var(--color-accent-deep)', // warm earthen bronze
   },
   {
     id: 'time-boxing',
@@ -95,7 +95,7 @@ export const STUDY_METHODS: StudyMethodInfo[] = [
     ],
     autoShifts: true,
     scienceNote: 'Leverages Parkinson’s Law: tasks shrink to fit allotted time boundaries.',
-    accentColor: '#B45309', // warm amber
+    accentColor: 'var(--color-accent-box)', // warm amber
   },
   {
     id: 'fifty-two-seventeen',
@@ -119,6 +119,6 @@ export const STUDY_METHODS: StudyMethodInfo[] = [
     ],
     autoShifts: true,
     scienceNote: '17 minutes offline resets executive attention without causing sluggishness.',
-    accentColor: '#4A6B82', // warm muted slate blue
+    accentColor: 'var(--color-accent-sprint)', // warm muted slate blue
   },
 ];

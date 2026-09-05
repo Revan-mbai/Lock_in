@@ -11,9 +11,9 @@ export function PWAInstallButton() {
     return (
       <div 
         title="Running as installed app"
-        className="hidden md:flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-[#F4EFE6] text-[#78716C] text-[11px] font-medium"
+        className="hidden md:flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-surface-muted text-ink-muted text-[11px] font-medium"
       >
-        <CheckCircle2 className="w-3.5 h-3.5 text-[#15803D]" />
+        <CheckCircle2 className="w-3.5 h-3.5 text-live" />
         <span>App Ready</span>
       </div>
     );
@@ -25,7 +25,7 @@ export function PWAInstallButton() {
       <button
         id="pwa-install-action-btn"
         onClick={install}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#1C1917] text-[#FAF8F5] text-xs font-medium hover:bg-[#38332F] transition-all shadow-xs active:scale-95"
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-ink text-canvas text-xs font-medium hover:bg-chip-line transition-all shadow-xs active:scale-95"
         title="Install Lock In as an app on your device"
       >
         <Download className="w-3.5 h-3.5" />
@@ -40,10 +40,10 @@ export function PWAInstallButton() {
       <button
         id="pwa-install-guide-btn"
         onClick={() => setShowGuide(true)}
-        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-[#E7DFD4] text-[#57534E] text-xs font-medium hover:bg-[#F4EFE6] hover:text-[#1C1917] transition-all active:scale-95"
+        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-line text-ink-secondary text-xs font-medium hover:bg-surface-muted hover:text-ink transition-all active:scale-95"
         title="Install Lock In to Home Screen"
       >
-        <Smartphone className="w-3.5 h-3.5 text-[#8C827A]" />
+        <Smartphone className="w-3.5 h-3.5 text-ink-muted" />
         <span className="hidden sm:inline">{isIOS ? 'Add to Home' : 'Install App'}</span>
         <span className="sm:hidden">Install</span>
       </button>
@@ -56,51 +56,51 @@ export function PWAInstallButton() {
           <div
             id="pwa-install-modal"
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-sm rounded-2xl bg-[#FFFFFF] border border-[#E7DFD4] p-5 shadow-2xl space-y-4"
+            className="w-full max-w-sm rounded-2xl bg-surface border border-line p-5 shadow-2xl space-y-4"
           >
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-2.5">
                 <img
                   src="/pwa-192x192.png"
                   alt="Lock In App Icon"
-                  className="w-10 h-10 rounded-xl shadow-xs border border-[#EAE5DC]"
+                  className="w-10 h-10 rounded-xl shadow-xs border border-line"
                 />
                 <div>
-                  <h3 className="font-serif text-base font-semibold text-[#1C1917]">
+                  <h3 className="font-serif text-base font-semibold text-ink">
                     Install Lock In
                   </h3>
-                  <p className="text-[11px] text-[#8C827A]">
+                  <p className="text-[11px] text-ink-muted">
                     Full-screen offline focus app.
                   </p>
                 </div>
               </div>
               <button
                 onClick={() => setShowGuide(false)}
-                className="text-[#A8A29E] hover:text-[#1C1917] p-1 rounded-lg hover:bg-[#FAF8F5]"
+                className="text-ink-faint hover:text-ink p-1 rounded-lg hover:bg-canvas"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             {isIOS ? (
-              <div className="p-3 rounded-xl bg-[#FAF8F5] border border-[#E7E3DC] text-xs text-[#57534E]">
+              <div className="p-3 rounded-xl bg-canvas border border-line text-xs text-ink-secondary">
                 <p className="leading-snug">
-                  Tap <strong className="text-[#1C1917]">Share</strong> <Share2 className="w-3.5 h-3.5 inline mx-0.5 text-[#2563EB]" /> in Safari, then tap <strong className="text-[#1C1917]">Add to Home Screen</strong> <PlusSquare className="w-3.5 h-3.5 inline mx-0.5" />.
+                  Tap <strong className="text-ink">Share</strong> <Share2 className="w-3.5 h-3.5 inline mx-0.5 text-sound-rain" /> in Safari, then tap <strong className="text-ink">Add to Home Screen</strong> <PlusSquare className="w-3.5 h-3.5 inline mx-0.5" />.
                 </p>
               </div>
             ) : (
-              <div className="p-3 rounded-xl bg-[#FAF8F5] border border-[#E7E3DC] text-xs text-[#57534E]">
+              <div className="p-3 rounded-xl bg-canvas border border-line text-xs text-ink-secondary">
                 <p className="leading-snug">
-                  Open the browser menu <strong className="text-[#1C1917]">&#8942;</strong> and select <strong className="text-[#1C1917]">Install App</strong>.
+                  Open the browser menu <strong className="text-ink">&#8942;</strong> and select <strong className="text-ink">Install App</strong>.
                 </p>
               </div>
             )}
 
-            <div className="pt-2 border-t border-[#F0ECE4] flex items-center justify-between text-[11px] text-[#8C827A]">
+            <div className="pt-2 border-t border-track flex items-center justify-between text-[11px] text-ink-muted">
               <span>Runs offline without an app store.</span>
               <button
                 onClick={() => setShowGuide(false)}
-                className="px-3 py-1 rounded-lg bg-[#FAF8F5] text-[#1C1917] hover:bg-[#EAE5DC] font-medium text-xs"
+                className="px-3 py-1 rounded-lg bg-canvas text-ink hover:bg-line font-medium text-xs"
               >
                 Got it
               </button>

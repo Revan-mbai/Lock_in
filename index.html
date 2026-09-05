@@ -4,6 +4,23 @@
     <!-- The vite console-error shield is injected by hmrCompatPlugin in vite.config.ts.
          Do not inline a second copy here — it would run twice on every page load. -->
     <meta charset="UTF-8" />
+    <script>
+      // Runs before the first paint so the page never flashes the wrong theme. Resolves the
+      // stored choice, falling back to the OS setting, and stamps data-theme on <html>. Because
+      // the attribute is always present, src/index.css needs only one dark palette rather than a
+      // second copy inside a prefers-color-scheme query.
+      (function () {
+        try {
+          var stored = localStorage.getItem('study_methods_theme_v1');
+          var dark = stored === null
+            ? window.matchMedia('(prefers-color-scheme: dark)').matches
+            : stored === 'dark';
+          document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+        } catch (e) {
+          document.documentElement.setAttribute('data-theme', 'light');
+        }
+      })();
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Lock In - Focus & Break Suite</title>
     <meta name="description" content="A warm, minimalistic study suite with interactive automated focus and break timers for Pomodoro, Flowtime, 90-Minute Cycles, Time Boxing, and the 52/17 Rule." />
@@ -11,7 +28,7 @@
     <meta property="og:description" content="A warm, minimalistic study suite with interactive automated focus and break timers for Pomodoro, Flowtime, 90-Minute Cycles, Time Boxing, and the 52/17 Rule." />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="theme-color" content="#FAF8F5" />
+    <meta name="theme-color" content="var(--color-canvas)" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
@@ -26,7 +43,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap" rel="stylesheet">
   </head>
-  <body class="bg-[#FAF8F5] text-[#292524] antialiased selection:bg-[#E8DCCF] selection:text-[#1C1917]">
+  <body class="bg-canvas text-ink-body antialiased selection:bg-selection selection:text-ink">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

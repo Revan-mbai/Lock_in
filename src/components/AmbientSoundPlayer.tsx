@@ -34,56 +34,56 @@ const SOUND_OPTIONS: SoundOption[] = [
     label: 'Brown Noise',
     desc: 'Deep warm rumble',
     icon: Wind,
-    accent: 'text-[#B45309]',
+    accent: 'text-accent-box',
   },
   {
     id: 'rain',
     label: 'Rain',
     desc: 'Steady rainfall',
     icon: CloudRain,
-    accent: 'text-[#3B82F6]',
+    accent: 'text-sound-rain',
   },
   {
     id: 'waves',
     label: 'Waves',
     desc: 'Coastal surf',
     icon: Waves,
-    accent: 'text-[#0D9488]',
+    accent: 'text-sound-waves',
   },
   {
     id: 'fireplace',
     label: 'Campfire',
     desc: 'Gentle crackle',
     icon: Flame,
-    accent: 'text-[#EA580C]',
+    accent: 'text-sound-fire',
   },
   {
     id: 'cafe',
     label: 'Cafe',
     desc: 'Room murmur',
     icon: Coffee,
-    accent: 'text-[#92400E]',
+    accent: 'text-sound-cafe',
   },
   {
     id: 'pink',
     label: 'Pink Noise',
     desc: 'Balanced stream',
     icon: Sparkles,
-    accent: 'text-[#D97706]',
+    accent: 'text-sound-pink',
   },
   {
     id: 'binaural',
     label: 'Alpha Wave',
     desc: '10Hz binaural tone',
     icon: Headphones,
-    accent: 'text-[#10B981]',
+    accent: 'text-sound-alpha',
   },
   {
     id: 'white',
     label: 'White Noise',
     desc: 'Clean static',
     icon: Radio,
-    accent: 'text-[#6B7280]',
+    accent: 'text-sound-white',
   },
 ];
 
@@ -133,12 +133,12 @@ export function AmbientSoundPlayer({ isPlaying, onTogglePlay }: AmbientSoundPlay
           title={isPlaying ? `Playing ${currentOption.label} - Click to pause` : 'Play ambient focus noise'}
           className={`p-2 rounded-xl text-xs font-medium flex items-center gap-1.5 transition-all ${
             isPlaying
-              ? 'bg-[#EAE5DC] text-[#292524] shadow-xs'
-              : 'text-[#78716C] hover:text-[#292524] hover:bg-[#F2EFE9]'
+              ? 'bg-line text-ink-body shadow-xs'
+              : 'text-ink-muted hover:text-ink-body hover:bg-surface-hover'
           }`}
         >
           {isPlaying ? (
-            <Volume2 className="w-4 h-4 text-[#C86D51] animate-pulse" />
+            <Volume2 className="w-4 h-4 text-accent-focus animate-pulse" />
           ) : (
             <VolumeX className="w-4 h-4" />
           )}
@@ -151,7 +151,7 @@ export function AmbientSoundPlayer({ isPlaying, onTogglePlay }: AmbientSoundPlay
           id="ambient-sound-options-btn"
           onClick={() => setIsOpen(!isOpen)}
           title="Ambient soundscapes & volume"
-          className="p-2 rounded-xl text-[#78716C] hover:text-[#292524] hover:bg-[#F2EFE9] transition-colors"
+          className="p-2 rounded-xl text-ink-muted hover:text-ink-body hover:bg-surface-hover transition-colors"
         >
           <Sliders className="w-3.5 h-3.5" />
         </button>
@@ -161,20 +161,20 @@ export function AmbientSoundPlayer({ isPlaying, onTogglePlay }: AmbientSoundPlay
       {isOpen && (
         <div
           id="ambient-sound-popover"
-          className="absolute right-0 top-full mt-2 w-72 p-4 rounded-2xl bg-[#FFFFFF] border border-[#E7E3DC] shadow-xl z-50 space-y-3.5 text-xs animate-in fade-in zoom-in-95 duration-150"
+          className="absolute right-0 top-full mt-2 w-72 p-4 rounded-2xl bg-surface border border-line shadow-xl z-50 space-y-3.5 text-xs animate-in fade-in zoom-in-95 duration-150"
         >
-          <div className="flex items-center justify-between border-b border-[#F0ECE4] pb-2.5">
+          <div className="flex items-center justify-between border-b border-track pb-2.5">
             <div>
-              <span className="font-serif text-sm font-semibold text-[#1C1917] block">
+              <span className="font-serif text-sm font-semibold text-ink block">
                 Ambient Sound
               </span>
-              <span className="text-[10px] text-[#8C827A]">
+              <span className="text-[10px] text-ink-muted">
                 Background noise generator
               </span>
             </div>
             <button
               onClick={() => setIsOpen(false)}
-              className="text-[#A8A29E] hover:text-[#292524] text-base leading-none p-1"
+              className="text-ink-faint hover:text-ink-body text-base leading-none p-1"
             >
               &times;
             </button>
@@ -191,19 +191,19 @@ export function AmbientSoundPlayer({ isPlaying, onTogglePlay }: AmbientSoundPlay
                   onClick={() => handleSelectType(opt.id)}
                   className={`w-full text-left px-2.5 py-2 rounded-xl flex items-center justify-between transition-colors ${
                     isSelected
-                      ? 'bg-[#FAF5EE] text-[#1C1917] font-medium border border-[#E7DFD4]'
-                      : 'text-[#57534E] hover:bg-[#FAF8F5]'
+                      ? 'bg-surface-muted text-ink font-medium border border-line'
+                      : 'text-ink-secondary hover:bg-canvas'
                   }`}
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <Icon className={`w-4 h-4 shrink-0 ${isSelected ? opt.accent : 'text-[#8C827A]'}`} />
+                    <Icon className={`w-4 h-4 shrink-0 ${isSelected ? opt.accent : 'text-ink-muted'}`} />
                     <div className="min-w-0">
                       <div className="text-xs font-medium truncate">{opt.label}</div>
-                      <div className="text-[10px] text-[#8C827A] truncate">{opt.desc}</div>
+                      <div className="text-[10px] text-ink-muted truncate">{opt.desc}</div>
                     </div>
                   </div>
                   {isSelected && isPlaying && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#1C1917] shrink-0 ml-1.5 animate-ping" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-ink shrink-0 ml-1.5 animate-ping" />
                   )}
                 </button>
               );
@@ -211,8 +211,8 @@ export function AmbientSoundPlayer({ isPlaying, onTogglePlay }: AmbientSoundPlay
           </div>
 
           {/* Volume slider */}
-          <div className="space-y-1.5 pt-2.5 border-t border-[#F0ECE4]">
-            <div className="flex justify-between text-[11px] text-[#78716C]">
+          <div className="space-y-1.5 pt-2.5 border-t border-track">
+            <div className="flex justify-between text-[11px] text-ink-muted">
               <span>Volume</span>
               <span className="font-mono text-[10px]">{Math.round(volume * 250)}%</span>
             </div>
@@ -223,7 +223,7 @@ export function AmbientSoundPlayer({ isPlaying, onTogglePlay }: AmbientSoundPlay
               step="0.02"
               value={volume}
               onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
-              className="w-full h-1.5 rounded-lg bg-[#EFECE6] accent-[#1C1917] cursor-pointer"
+              className="w-full h-1.5 rounded-lg bg-surface-muted accent-ink cursor-pointer"
             />
           </div>
 
@@ -233,8 +233,8 @@ export function AmbientSoundPlayer({ isPlaying, onTogglePlay }: AmbientSoundPlay
               onClick={toggleSound}
               className={`w-full py-2 rounded-xl font-medium text-xs text-center transition-colors ${
                 isPlaying
-                  ? 'bg-[#EFECE6] text-[#292524] hover:bg-[#E5E0D8]'
-                  : 'bg-[#1C1917] text-[#FAF8F5] hover:bg-[#2E2A27]'
+                  ? 'bg-surface-muted text-ink-body hover:bg-surface-active'
+                  : 'bg-ink text-canvas hover:bg-ink-hover'
               }`}
             >
               {isPlaying ? 'Pause Sound' : 'Play Sound'}

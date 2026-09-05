@@ -183,16 +183,16 @@ export function FiftyTwoSeventeenTimer({ onSessionComplete, soundEnabled }: Fift
       {transitionNotification && (
         <div 
           id="fifty-two-transition-alert"
-          className="p-4 rounded-xl bg-[#EFECE6] border border-[#DDD7CD] text-[#2C2926] text-sm flex items-center justify-between shadow-xs transition-all"
+          className="p-4 rounded-xl bg-surface-muted border border-line-strong text-ink-body text-sm flex items-center justify-between shadow-xs transition-all"
         >
           <div className="flex items-center gap-3">
-            <Sparkles className="w-4 h-4 text-[#4A6B82] shrink-0" />
+            <Sparkles className="w-4 h-4 text-accent-sprint shrink-0" />
             <span className="font-medium">{transitionNotification}</span>
           </div>
           <button 
             id="dismiss-fifty-two-alert"
             onClick={() => setTransitionNotification(null)}
-            className="text-xs text-[#78716C] hover:text-[#292524] underline ml-3"
+            className="text-xs text-ink-muted hover:text-ink-body underline ml-3"
           >
             Dismiss
           </button>
@@ -200,7 +200,7 @@ export function FiftyTwoSeventeenTimer({ onSessionComplete, soundEnabled }: Fift
       )}
 
       {/* Main Timer Card */}
-      <div className="bg-[#FFFFFF] border border-[#E7E3DC] rounded-2xl p-6 sm:p-10 shadow-xs relative overflow-hidden">
+      <div className="bg-surface border border-line rounded-2xl p-6 sm:p-10 shadow-xs relative overflow-hidden">
         {/* Phase selector tabs */}
         <div className="flex items-center justify-center gap-2 mb-8">
           <button
@@ -214,8 +214,8 @@ export function FiftyTwoSeventeenTimer({ onSessionComplete, soundEnabled }: Fift
             }}
             className={`px-4 py-1.5 rounded-full text-xs sm:text-sm font-medium transition-all ${
               phase === 'work'
-                ? 'bg-[#2B2724] text-[#FAF8F5]'
-                : 'text-[#78716C] hover:text-[#292524] bg-[#F7F5F0]'
+                ? 'bg-ink text-canvas'
+                : 'text-ink-muted hover:text-ink-body bg-surface-subtle'
             }`}
           >
             Focus (52m)
@@ -231,8 +231,8 @@ export function FiftyTwoSeventeenTimer({ onSessionComplete, soundEnabled }: Fift
             }}
             className={`px-4 py-1.5 rounded-full text-xs sm:text-sm font-medium transition-all ${
               phase === 'break'
-                ? 'bg-[#4A6B82] text-[#FAF8F5]'
-                : 'text-[#78716C] hover:text-[#292524] bg-[#F7F5F0]'
+                ? 'bg-accent-sprint text-canvas'
+                : 'text-ink-muted hover:text-ink-body bg-surface-subtle'
             }`}
           >
             Break (17m)
@@ -241,7 +241,7 @@ export function FiftyTwoSeventeenTimer({ onSessionComplete, soundEnabled }: Fift
 
         {/* Task Focus Input */}
         <div className="max-w-md mx-auto mb-8">
-          <label htmlFor="fifty-two-task-input" className="block text-center text-xs tracking-wider uppercase text-[#78716C] mb-2 font-medium">
+          <label htmlFor="fifty-two-task-input" className="block text-center text-xs tracking-wider uppercase text-ink-muted mb-2 font-medium">
             {phase === 'work' ? 'Task' : 'Break'}
           </label>
           {phase === 'work' ? (
@@ -251,10 +251,10 @@ export function FiftyTwoSeventeenTimer({ onSessionComplete, soundEnabled }: Fift
               value={taskSubject}
               onChange={(e) => setTaskSubject(e.target.value)}
               placeholder="e.g. Research synthesis notes..."
-              className="w-full text-center px-4 py-2.5 rounded-xl border border-[#E7E3DC] bg-[#FAF8F5] text-sm text-[#292524] placeholder-[#A8A29E] focus:outline-none focus:border-[#4A6B82] transition-colors"
+              className="w-full text-center px-4 py-2.5 rounded-xl border border-line bg-canvas text-sm text-ink-body placeholder-ink-faint focus:outline-none focus:border-accent-sprint transition-colors"
             />
           ) : (
-            <div className="text-center text-sm font-serif italic text-[#4A6B82] flex items-center justify-center gap-1.5">
+            <div className="text-center text-sm font-serif italic text-accent-sprint flex items-center justify-center gap-1.5">
               <Footprints className="w-4 h-4" />
               <span>Step away from screens and recharge.</span>
             </div>
@@ -265,12 +265,12 @@ export function FiftyTwoSeventeenTimer({ onSessionComplete, soundEnabled }: Fift
         <div className="flex flex-col items-center justify-center my-6">
           <div className="relative w-64 h-64 sm:w-72 sm:h-72 flex items-center justify-center">
             <svg className="w-full h-full -rotate-90 transform" viewBox="0 0 100 100">
-              <circle cx="50" cy="50" r="44" stroke="#F0ECE4" strokeWidth="4" fill="transparent" />
+              <circle cx="50" cy="50" r="44" stroke="var(--color-track)" strokeWidth="4" fill="transparent" />
               <circle
                 cx="50"
                 cy="50"
                 r="44"
-                stroke={phase === 'work' ? '#4A6B82' : '#58705C'}
+                stroke={phase === 'work' ? 'var(--color-accent-sprint)' : 'var(--color-accent-break)'}
                 strokeWidth="4"
                 strokeLinecap="round"
                 fill="transparent"
@@ -281,13 +281,13 @@ export function FiftyTwoSeventeenTimer({ onSessionComplete, soundEnabled }: Fift
             </svg>
 
             <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-              <span id="fifty-two-digits" className="font-mono text-5xl sm:text-6xl font-semibold tracking-tight text-[#1C1917]">
+              <span id="fifty-two-digits" className="font-mono text-5xl sm:text-6xl font-semibold tracking-tight text-ink">
                 {formatTime(timeLeft)}
               </span>
-              <span className="text-xs font-medium uppercase tracking-widest text-[#78716C] mt-2">
+              <span className="text-xs font-medium uppercase tracking-widest text-ink-muted mt-2">
                 {phase === 'work' ? 'Focus' : 'Break'}
               </span>
-              <span className="text-[11px] text-[#A8A29E] mt-1">
+              <span className="text-[11px] text-ink-faint mt-1">
                 {autoStartNext ? 'Auto-shifts into break' : 'Manual shift'}
               </span>
             </div>
@@ -300,7 +300,7 @@ export function FiftyTwoSeventeenTimer({ onSessionComplete, soundEnabled }: Fift
             id="fifty-two-reset-btn"
             onClick={handleReset}
             title="Reset timer"
-            className="p-3 rounded-full border border-[#E7E3DC] text-[#78716C] hover:text-[#292524] hover:bg-[#F7F5F0] transition-colors"
+            className="p-3 rounded-full border border-line text-ink-muted hover:text-ink-body hover:bg-surface-subtle transition-colors"
           >
             <RotateCcw className="w-4 h-4" />
           </button>
@@ -310,8 +310,8 @@ export function FiftyTwoSeventeenTimer({ onSessionComplete, soundEnabled }: Fift
             onClick={handleStartPause}
             className={`px-8 py-3.5 rounded-full font-medium text-sm flex items-center gap-2.5 transition-all shadow-xs ${
               isRunning
-                ? 'bg-[#EFECE6] text-[#292524] hover:bg-[#E5E0D8]'
-                : 'bg-[#1C1917] text-[#FAF8F5] hover:bg-[#2E2A27]'
+                ? 'bg-surface-muted text-ink-body hover:bg-surface-active'
+                : 'bg-ink text-canvas hover:bg-ink-hover'
             }`}
           >
             {isRunning ? (
@@ -331,16 +331,16 @@ export function FiftyTwoSeventeenTimer({ onSessionComplete, soundEnabled }: Fift
             id="fifty-two-skip-btn"
             onClick={handleSkipPhase}
             title="Skip to next phase"
-            className="p-3 rounded-full border border-[#E7E3DC] text-[#78716C] hover:text-[#292524] hover:bg-[#F7F5F0] transition-colors"
+            className="p-3 rounded-full border border-line text-ink-muted hover:text-ink-body hover:bg-surface-subtle transition-colors"
           >
             <SkipForward className="w-4 h-4" />
           </button>
         </div>
 
         {/* Footer info & Auto-shift toggle */}
-        <div className="mt-10 pt-6 border-t border-[#F0ECE4] flex items-center justify-between text-xs text-[#78716C]">
+        <div className="mt-10 pt-6 border-t border-track flex items-center justify-between text-xs text-ink-muted">
           <div className="flex items-center gap-1.5">
-            <Compass className="w-4 h-4 text-[#4A6B82]" />
+            <Compass className="w-4 h-4 text-accent-sprint" />
             <span>Ratio: 52m Focus / 17m Rest</span>
           </div>
 
@@ -350,7 +350,7 @@ export function FiftyTwoSeventeenTimer({ onSessionComplete, soundEnabled }: Fift
               type="checkbox"
               checked={autoStartNext}
               onChange={(e) => setAutoStartNext(e.target.checked)}
-              className="w-3.5 h-3.5 rounded accent-[#4A6B82]"
+              className="w-3.5 h-3.5 rounded accent-accent-sprint"
             />
             <span>Auto-shift</span>
           </label>
@@ -358,12 +358,12 @@ export function FiftyTwoSeventeenTimer({ onSessionComplete, soundEnabled }: Fift
       </div>
 
       {/* Science card */}
-      <div className="bg-[#FAF8F5] border border-[#E7E3DC] rounded-xl p-4 text-xs text-[#57534E] flex items-start gap-3">
-        <div className="p-1.5 rounded-md bg-[#EFECE6] text-[#4A6B82] shrink-0 mt-0.5">
+      <div className="bg-canvas border border-line rounded-xl p-4 text-xs text-ink-secondary flex items-start gap-3">
+        <div className="p-1.5 rounded-md bg-surface-muted text-accent-sprint shrink-0 mt-0.5">
           <ShieldCheck className="w-4 h-4" />
         </div>
         <div>
-          <span className="font-semibold text-[#1C1917]">Tip: </span>
+          <span className="font-semibold text-ink">Tip: </span>
           17 minutes of offline rest resets dopamine and mental sharpness without causing grogginess.
         </div>
       </div>

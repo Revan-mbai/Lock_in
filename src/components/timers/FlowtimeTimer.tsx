@@ -258,16 +258,16 @@ export function FlowtimeTimer({ onSessionComplete, soundEnabled }: FlowtimeTimer
       {transitionNotification && (
         <div 
           id="flowtime-transition-alert"
-          className="p-4 rounded-xl bg-[#EFECE6] border border-[#DDD7CD] text-[#2C2926] text-sm flex items-center justify-between shadow-xs transition-all"
+          className="p-4 rounded-xl bg-surface-muted border border-line-strong text-ink-body text-sm flex items-center justify-between shadow-xs transition-all"
         >
           <div className="flex items-center gap-3">
-            <Sparkles className="w-4 h-4 text-[#58705C] shrink-0" />
+            <Sparkles className="w-4 h-4 text-accent-break shrink-0" />
             <span className="font-medium">{transitionNotification}</span>
           </div>
           <button 
             id="dismiss-flowtime-alert"
             onClick={() => setTransitionNotification(null)}
-            className="text-xs text-[#78716C] hover:text-[#292524] underline ml-3"
+            className="text-xs text-ink-muted hover:text-ink-body underline ml-3"
           >
             Dismiss
           </button>
@@ -275,18 +275,18 @@ export function FlowtimeTimer({ onSessionComplete, soundEnabled }: FlowtimeTimer
       )}
 
       {/* Main Flowtime Card */}
-      <div className="bg-[#FFFFFF] border border-[#E7E3DC] rounded-2xl p-6 sm:p-10 shadow-xs relative overflow-hidden">
+      <div className="bg-surface border border-line rounded-2xl p-6 sm:p-10 shadow-xs relative overflow-hidden">
         {/* Status Mode Badge */}
         <div className="flex justify-center mb-6">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-medium bg-[#F5F2EB] text-[#44403C] border border-[#E5E0D6]">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-medium bg-surface-subtle text-ink-secondary border border-line">
             {mode === 'flow' ? (
               <>
-                <Brain className="w-3.5 h-3.5 text-[#58705C]" />
+                <Brain className="w-3.5 h-3.5 text-accent-break" />
                 <span>Flow Stopwatch</span>
               </>
             ) : (
               <>
-                <Coffee className="w-3.5 h-3.5 text-[#B45309]" />
+                <Coffee className="w-3.5 h-3.5 text-accent-box" />
                 <span>Break Countdown</span>
               </>
             )}
@@ -295,7 +295,7 @@ export function FlowtimeTimer({ onSessionComplete, soundEnabled }: FlowtimeTimer
 
         {/* Task Focus Input */}
         <div className="max-w-md mx-auto mb-8">
-          <label htmlFor="flowtime-task-input" className="block text-center text-xs tracking-wider uppercase text-[#78716C] mb-2 font-medium">
+          <label htmlFor="flowtime-task-input" className="block text-center text-xs tracking-wider uppercase text-ink-muted mb-2 font-medium">
             {mode === 'flow' ? 'Task' : 'Break'}
           </label>
           {mode === 'flow' ? (
@@ -305,10 +305,10 @@ export function FlowtimeTimer({ onSessionComplete, soundEnabled }: FlowtimeTimer
               value={taskSubject}
               onChange={(e) => setTaskSubject(e.target.value)}
               placeholder="e.g. Linear Algebra proof..."
-              className="w-full text-center px-4 py-2.5 rounded-xl border border-[#E7E3DC] bg-[#FAF8F5] text-sm text-[#292524] placeholder-[#A8A29E] focus:outline-none focus:border-[#58705C] transition-colors"
+              className="w-full text-center px-4 py-2.5 rounded-xl border border-line bg-canvas text-sm text-ink-body placeholder-ink-faint focus:outline-none focus:border-accent-break transition-colors"
             />
           ) : (
-            <p className="text-center text-sm font-serif italic text-[#58705C]">
+            <p className="text-center text-sm font-serif italic text-accent-break">
               Step away and rest your eyes.
             </p>
           )}
@@ -317,18 +317,18 @@ export function FlowtimeTimer({ onSessionComplete, soundEnabled }: FlowtimeTimer
         {/* Stopwatch or Break Countdown */}
         {mode === 'flow' ? (
           <div className="flex flex-col items-center justify-center my-6">
-            <div className="font-mono text-5xl sm:text-6xl font-semibold tracking-tight text-[#1C1917]">
+            <div className="font-mono text-5xl sm:text-6xl font-semibold tracking-tight text-ink">
               {formatTime(elapsedFlowSeconds)}
             </div>
-            <div className="text-xs font-medium uppercase tracking-widest text-[#78716C] mt-3">
+            <div className="text-xs font-medium uppercase tracking-widest text-ink-muted mt-3">
               {isFlowing ? 'Flowing' : 'Ready'}
             </div>
 
             {/* Live Break Calculation Card */}
-            <div className="mt-6 px-4 py-2 rounded-xl bg-[#FAF8F5] border border-[#E7E3DC] flex items-center gap-2.5 text-xs text-[#57534E]">
-              <Clock className="w-4 h-4 text-[#58705C]" />
+            <div className="mt-6 px-4 py-2 rounded-xl bg-canvas border border-line flex items-center gap-2.5 text-xs text-ink-secondary">
+              <Clock className="w-4 h-4 text-accent-break" />
               <span>
-                Earned rest: <strong className="text-[#292524] font-semibold">{currentRecommendedBreak}m</strong> if you stop now
+                Earned rest: <strong className="text-ink-body font-semibold">{currentRecommendedBreak}m</strong> if you stop now
               </span>
             </div>
           </div>
@@ -337,12 +337,12 @@ export function FlowtimeTimer({ onSessionComplete, soundEnabled }: FlowtimeTimer
           <div className="flex flex-col items-center justify-center my-6">
             <div className="relative w-60 h-60 flex items-center justify-center">
               <svg className="w-full h-full -rotate-90 transform" viewBox="0 0 100 100">
-                <circle cx="50" cy="50" r="44" stroke="#F0ECE4" strokeWidth="4" fill="transparent" />
+                <circle cx="50" cy="50" r="44" stroke="var(--color-track)" strokeWidth="4" fill="transparent" />
                 <circle
                   cx="50"
                   cy="50"
                   r="44"
-                  stroke="#58705C"
+                  stroke="var(--color-accent-break)"
                   strokeWidth="4"
                   strokeLinecap="round"
                   fill="transparent"
@@ -352,10 +352,10 @@ export function FlowtimeTimer({ onSessionComplete, soundEnabled }: FlowtimeTimer
                 />
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-                <span id="flowtime-break-digits" className="font-mono text-5xl font-semibold text-[#1C1917]">
+                <span id="flowtime-break-digits" className="font-mono text-5xl font-semibold text-ink">
                   {formatTime(breakTimeLeft)}
                 </span>
-                <span className="text-xs font-medium uppercase tracking-widest text-[#58705C] mt-2">
+                <span className="text-xs font-medium uppercase tracking-widest text-accent-break mt-2">
                   Break
                 </span>
               </div>
@@ -371,7 +371,7 @@ export function FlowtimeTimer({ onSessionComplete, soundEnabled }: FlowtimeTimer
                 id="flowtime-reset-btn"
                 onClick={handleResetFlow}
                 title="Reset stopwatch"
-                className="p-3 rounded-full border border-[#E7E3DC] text-[#78716C] hover:text-[#292524] hover:bg-[#F7F5F0] transition-colors"
+                className="p-3 rounded-full border border-line text-ink-muted hover:text-ink-body hover:bg-surface-subtle transition-colors"
               >
                 <RotateCcw className="w-4 h-4" />
               </button>
@@ -381,8 +381,8 @@ export function FlowtimeTimer({ onSessionComplete, soundEnabled }: FlowtimeTimer
                 onClick={() => setIsFlowing(!isFlowing)}
                 className={`px-8 py-3.5 rounded-full font-medium text-sm flex items-center gap-2.5 transition-all shadow-xs ${
                   isFlowing
-                    ? 'bg-[#EFECE6] text-[#292524] hover:bg-[#E5E0D8]'
-                    : 'bg-[#1C1917] text-[#FAF8F5] hover:bg-[#2E2A27]'
+                    ? 'bg-surface-muted text-ink-body hover:bg-surface-active'
+                    : 'bg-ink text-canvas hover:bg-ink-hover'
                 }`}
               >
                 {isFlowing ? (
@@ -403,7 +403,7 @@ export function FlowtimeTimer({ onSessionComplete, soundEnabled }: FlowtimeTimer
                 <button
                   id="flowtime-take-break-btn"
                   onClick={handleTriggerBreak}
-                  className="px-5 py-3 rounded-full bg-[#58705C] text-[#FAF8F5] hover:bg-[#475C4B] font-medium text-xs sm:text-sm flex items-center gap-2 transition-all shadow-xs"
+                  className="px-5 py-3 rounded-full bg-accent-break text-canvas hover:bg-accent-break-hover font-medium text-xs sm:text-sm flex items-center gap-2 transition-all shadow-xs"
                 >
                   <Coffee className="w-4 h-4" />
                   <span>Break ({currentRecommendedBreak}m)</span>
@@ -415,14 +415,14 @@ export function FlowtimeTimer({ onSessionComplete, soundEnabled }: FlowtimeTimer
               <button
                 id="flowtime-break-pause-btn"
                 onClick={() => setIsBreakRunning(!isBreakRunning)}
-                className="px-6 py-3 rounded-full border border-[#E7E3DC] text-xs font-medium text-[#292524] hover:bg-[#F7F5F0] transition-colors"
+                className="px-6 py-3 rounded-full border border-line text-xs font-medium text-ink-body hover:bg-surface-subtle transition-colors"
               >
                 {isBreakRunning ? 'Pause' : 'Resume'}
               </button>
               <button
                 id="flowtime-skip-break-btn"
                 onClick={handleSkipBreak}
-                className="px-6 py-3 rounded-full bg-[#1C1917] text-[#FAF8F5] text-xs font-medium hover:bg-[#2E2A27] flex items-center gap-2 transition-colors"
+                className="px-6 py-3 rounded-full bg-ink text-canvas text-xs font-medium hover:bg-ink-hover flex items-center gap-2 transition-colors"
               >
                 <span>Finish Break</span>
                 <ArrowRight className="w-3.5 h-3.5" />
@@ -432,8 +432,8 @@ export function FlowtimeTimer({ onSessionComplete, soundEnabled }: FlowtimeTimer
         </div>
 
         {/* Science Breakdown Scale */}
-        <div className="mt-10 pt-6 border-t border-[#F0ECE4]">
-          <div className="text-xs text-[#78716C] mb-2 font-medium">Rest Scale:</div>
+        <div className="mt-10 pt-6 border-t border-track">
+          <div className="text-xs text-ink-muted mb-2 font-medium">Rest Scale:</div>
           {/* Tiers mirror calculateFlowtimeBreakMinutes exactly. The 100m+ tier used to be
               missing, so a long block was promised a 15m break and given 20m. */}
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
@@ -445,11 +445,11 @@ export function FlowtimeTimer({ onSessionComplete, soundEnabled }: FlowtimeTimer
                 <div
                   key={tier.label}
                   className={`p-2.5 rounded-lg border ${
-                    isCurrent ? 'border-[#58705C] bg-[#F4F6F4]' : 'border-[#E7E3DC] bg-[#FAF8F5]'
+                    isCurrent ? 'border-accent-break bg-tint-break' : 'border-line bg-canvas'
                   }`}
                 >
-                  <div className="font-medium text-[#292524]">{tier.label}</div>
-                  <div className="text-[#58705C] font-semibold">{tier.breakMinutes}m break</div>
+                  <div className="font-medium text-ink-body">{tier.label}</div>
+                  <div className="text-accent-break font-semibold">{tier.breakMinutes}m break</div>
                 </div>
               );
             })}
@@ -458,13 +458,13 @@ export function FlowtimeTimer({ onSessionComplete, soundEnabled }: FlowtimeTimer
 
         {/* Recent Flow Sessions Today */}
         {todayRecords.length > 0 && (
-          <div className="mt-6 pt-4 border-t border-[#F0ECE4] text-xs">
-            <div className="font-medium text-[#44403C] mb-2">Today's Flow Log:</div>
+          <div className="mt-6 pt-4 border-t border-track text-xs">
+            <div className="font-medium text-ink-secondary mb-2">Today's Flow Log:</div>
             <div className="space-y-1.5">
               {todayRecords.map((rec) => (
-                <div key={rec.id} className="flex justify-between items-center py-1 px-2.5 rounded bg-[#FAF8F5] text-[#57534E]">
+                <div key={rec.id} className="flex justify-between items-center py-1 px-2.5 rounded bg-canvas text-ink-secondary">
                   <span>{rec.timestamp} &bull; Flow block</span>
-                  <span className="font-mono text-[#292524] font-medium">{rec.minutes}m focus &rarr; {rec.breakMins}m break</span>
+                  <span className="font-mono text-ink-body font-medium">{rec.minutes}m focus &rarr; {rec.breakMins}m break</span>
                 </div>
               ))}
             </div>
@@ -473,12 +473,12 @@ export function FlowtimeTimer({ onSessionComplete, soundEnabled }: FlowtimeTimer
       </div>
 
       {/* Guide Note */}
-      <div className="bg-[#FAF8F5] border border-[#E7E3DC] rounded-xl p-4 text-xs text-[#57534E] flex items-start gap-3">
-        <div className="p-1.5 rounded-md bg-[#EFECE6] text-[#58705C] shrink-0 mt-0.5">
+      <div className="bg-canvas border border-line rounded-xl p-4 text-xs text-ink-secondary flex items-start gap-3">
+        <div className="p-1.5 rounded-md bg-surface-muted text-accent-break shrink-0 mt-0.5">
           <Brain className="w-4 h-4" />
         </div>
         <div>
-          <span className="font-semibold text-[#1C1917]">Tip: </span>
+          <span className="font-semibold text-ink">Tip: </span>
           Stop when you notice fatigue or restlessness, then take your earned proportional rest.
         </div>
       </div>

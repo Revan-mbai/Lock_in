@@ -15,6 +15,19 @@ const MAX_SESSION_LOGS = 500;
 
 const STORAGE_KEY_SOUND = 'study_methods_sound_enabled_v1';
 const STORAGE_KEY_ZEN = 'study_methods_zen_mode_v1';
+// Shared with the pre-paint script in index.html, which reads this key before React loads.
+const STORAGE_KEY_THEME = 'study_methods_theme_v1';
+
+type Theme = 'light' | 'dark';
+
+/**
+ * The theme index.html already resolved and stamped on <html>, so React starts in agreement
+ * with what is on screen instead of briefly disagreeing and repainting.
+ */
+function readAppliedTheme(): Theme {
+  if (typeof document === 'undefined') return 'light';
+  return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+}
 
 function loadBooleanPreference(key: string, fallback: boolean): boolean {
   try {
@@ -63,6 +76,7 @@ export default function App() {
   const [soundEnabled, setSoundEnabled] = useState(() => loadBooleanPreference(STORAGE_KEY_SOUND, true));
   const [isAmbientPlaying, setIsAmbientPlaying] = useState(false);
   const [isZenMode, setIsZenMode] = useState(() => loadBooleanPreference(STORAGE_KEY_ZEN, false));
+  const [theme, setTheme] = useState<Theme>(readAppliedTheme);
   const [isStatsOpen, setIsStatsOpen] = useState(false);
   // Read during render, not from an effect. Child effects run before the parent's, so a
   // timer that completed on this very mount recorded its session *before* a load effect
@@ -86,6 +100,44 @@ export default function App() {
     setIsZenMode(next);
     saveBooleanPreference(STORAGE_KEY_ZEN, next);
   };
+
+  const handleToggleTheme = () => {
+    const next: Theme = theme === 'dark' ? 'light' : 'dark';
+    setTheme(next);
+    try {
+      localStorage.setItem(STORAGE_KEY_THEME, next);
+    } catch {
+      // Ignore quota; the theme still applies for this session.
+    }
+  };
+
+  // Drive the attribute the stylesheet keys off, and keep the PWA's browser chrome in step.
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) {
+      meta.setAttribute(
+        'content',
+        getComputedStyle(document.documentElement).getPropertyValue('--color-canvas').trim()
+      );
+    }
+  }, [theme]);
+
+  // Follow the OS while the user has never chosen for themselves. Once they use the toggle a
+  // value is stored, and their choice keeps winning.
+  useEffect(() => {
+    const query = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleChange = (event: MediaQueryListEvent) => {
+      try {
+        if (localStorage.getItem(STORAGE_KEY_THEME) !== null) return;
+      } catch {
+        return;
+      }
+      setTheme(event.matches ? 'dark' : 'light');
+    };
+    query.addEventListener('change', handleChange);
+    return () => query.removeEventListener('change', handleChange);
+  }, []);
 
   const handleTabChange = (tab: ActiveTab) => {
     setActiveTab(tab);
@@ -153,7 +205,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col font-sans transition-colors duration-300 bg-[#FAF8F5]">
+    <div className="min-h-screen flex flex-col font-sans transition-colors duration-300 bg-canvas">
       {/* Header with Navigation & Quick Utilities */}
       <Header
         activeTab={activeTab}
@@ -164,6 +216,8 @@ export default function App() {
         onToggleAmbient={() => setIsAmbientPlaying(!isAmbientPlaying)}
         isZenMode={isZenMode}
         onToggleZenMode={handleToggleZenMode}
+        theme={theme}
+        onToggleTheme={handleToggleTheme}
         onOpenStats={() => setIsStatsOpen(true)}
         todayFocusMinutes={todayFocusMinutes}
       />
@@ -189,22 +243,22 @@ export default function App() {
 
       {/* Minimal Warm Footer (hidden in Zen mode) */}
       {!isZenMode && (
-        <footer className="border-t border-[#EAE5DC] py-6 text-center text-xs text-[#8C827A] bg-[#FAF8F5]">
+        <footer className="border-t border-line py-6 text-center text-xs text-ink-muted bg-canvas">
           <div className="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
             <div>
               <span>Designed for deep work & mental clarity &bull; Minimalist study methods</span>
             </div>
-            <div className="flex items-center gap-4 text-[#78716C]">
+            <div className="flex items-center gap-4 text-ink-muted">
               <button
                 onClick={() => handleTabChange('overview')}
-                className="hover:text-[#1C1917] transition-colors"
+                className="hover:text-ink transition-colors"
               >
                 All Methods
               </button>
               <span>&bull;</span>
               <button
                 onClick={() => setIsStatsOpen(true)}
-                className="hover:text-[#1C1917] transition-colors"
+                className="hover:text-ink transition-colors"
               >
                 Study Stats ({todayFocusMinutes}m)
               </button>

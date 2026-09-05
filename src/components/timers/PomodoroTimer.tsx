@@ -249,16 +249,16 @@ export function PomodoroTimer({ onSessionComplete, soundEnabled }: PomodoroTimer
       {transitionNotification && (
         <div 
           id="pomodoro-transition-alert"
-          className="p-4 rounded-xl bg-[#EFECE6] border border-[#DDD7CD] text-[#2C2926] text-sm flex items-center justify-between shadow-xs transition-all duration-300"
+          className="p-4 rounded-xl bg-surface-muted border border-line-strong text-ink-body text-sm flex items-center justify-between shadow-xs transition-all duration-300"
         >
           <div className="flex items-center gap-3">
-            <Sparkles className="w-4 h-4 text-[#C86D51] shrink-0" />
+            <Sparkles className="w-4 h-4 text-accent-focus shrink-0" />
             <span className="font-medium">{transitionNotification}</span>
           </div>
           <button 
             id="dismiss-pomodoro-alert"
             onClick={() => setTransitionNotification(null)}
-            className="text-xs text-[#78716C] hover:text-[#292524] underline ml-3"
+            className="text-xs text-ink-muted hover:text-ink-body underline ml-3"
           >
             Dismiss
           </button>
@@ -266,7 +266,7 @@ export function PomodoroTimer({ onSessionComplete, soundEnabled }: PomodoroTimer
       )}
 
       {/* Main Study Card */}
-      <div className="bg-[#FFFFFF] border border-[#E7E3DC] rounded-2xl p-6 sm:p-10 shadow-xs relative overflow-hidden">
+      <div className="bg-surface border border-line rounded-2xl p-6 sm:p-10 shadow-xs relative overflow-hidden">
         {/* Subtle Phase Indicator tabs */}
         <div className="flex items-center justify-center gap-2 mb-8">
           <button
@@ -280,8 +280,8 @@ export function PomodoroTimer({ onSessionComplete, soundEnabled }: PomodoroTimer
             }}
             className={`px-4 py-1.5 rounded-full text-xs sm:text-sm font-medium transition-all ${
               phase === 'work'
-                ? 'bg-[#2B2724] text-[#FAF8F5]'
-                : 'text-[#78716C] hover:text-[#292524] bg-[#F7F5F0]'
+                ? 'bg-ink text-canvas'
+                : 'text-ink-muted hover:text-ink-body bg-surface-subtle'
             }`}
           >
             Focus ({workDuration}m)
@@ -297,8 +297,8 @@ export function PomodoroTimer({ onSessionComplete, soundEnabled }: PomodoroTimer
             }}
             className={`px-4 py-1.5 rounded-full text-xs sm:text-sm font-medium transition-all ${
               phase === 'shortBreak'
-                ? 'bg-[#58705C] text-[#FAF8F5]'
-                : 'text-[#78716C] hover:text-[#292524] bg-[#F7F5F0]'
+                ? 'bg-accent-break text-canvas'
+                : 'text-ink-muted hover:text-ink-body bg-surface-subtle'
             }`}
           >
             Break ({shortBreakDuration}m)
@@ -314,8 +314,8 @@ export function PomodoroTimer({ onSessionComplete, soundEnabled }: PomodoroTimer
             }}
             className={`px-4 py-1.5 rounded-full text-xs sm:text-sm font-medium transition-all ${
               phase === 'longBreak'
-                ? 'bg-[#7C6F5A] text-[#FAF8F5]'
-                : 'text-[#78716C] hover:text-[#292524] bg-[#F7F5F0]'
+                ? 'bg-accent-deep text-canvas'
+                : 'text-ink-muted hover:text-ink-body bg-surface-subtle'
             }`}
           >
             Long Break ({longBreakDuration}m)
@@ -324,7 +324,7 @@ export function PomodoroTimer({ onSessionComplete, soundEnabled }: PomodoroTimer
 
         {/* Task Focus Input */}
         <div className="max-w-md mx-auto mb-8">
-          <label htmlFor="pomodoro-task-input" className="block text-center text-xs tracking-wider uppercase text-[#78716C] mb-2 font-medium">
+          <label htmlFor="pomodoro-task-input" className="block text-center text-xs tracking-wider uppercase text-ink-muted mb-2 font-medium">
             {phase === 'work' ? 'Task' : 'Break'}
           </label>
           {phase === 'work' ? (
@@ -334,10 +334,10 @@ export function PomodoroTimer({ onSessionComplete, soundEnabled }: PomodoroTimer
               value={taskSubject}
               onChange={(e) => setTaskSubject(e.target.value)}
               placeholder="e.g. Chapter 4 problem set..."
-              className="w-full text-center px-4 py-2.5 rounded-xl border border-[#E7E3DC] bg-[#FAF8F5] text-sm text-[#292524] placeholder-[#A8A29E] focus:outline-none focus:border-[#C86D51] transition-colors"
+              className="w-full text-center px-4 py-2.5 rounded-xl border border-line bg-canvas text-sm text-ink-body placeholder-ink-faint focus:outline-none focus:border-accent-focus transition-colors"
             />
           ) : (
-            <div className="text-center text-sm font-serif italic text-[#58705C]">
+            <div className="text-center text-sm font-serif italic text-accent-break">
               Step away, stretch, and hydrate.
             </div>
           )}
@@ -352,7 +352,7 @@ export function PomodoroTimer({ onSessionComplete, soundEnabled }: PomodoroTimer
                 cx="50"
                 cy="50"
                 r="44"
-                stroke="#F0ECE4"
+                stroke="var(--color-track)"
                 strokeWidth="4"
                 fill="transparent"
               />
@@ -360,7 +360,7 @@ export function PomodoroTimer({ onSessionComplete, soundEnabled }: PomodoroTimer
                 cx="50"
                 cy="50"
                 r="44"
-                stroke={phase === 'work' ? '#C86D51' : phase === 'shortBreak' ? '#58705C' : '#7C6F5A'}
+                stroke={phase === 'work' ? 'var(--color-accent-focus)' : phase === 'shortBreak' ? 'var(--color-accent-break)' : 'var(--color-accent-deep)'}
                 strokeWidth="4"
                 strokeLinecap="round"
                 fill="transparent"
@@ -374,14 +374,14 @@ export function PomodoroTimer({ onSessionComplete, soundEnabled }: PomodoroTimer
             <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
               <span 
                 id="pomodoro-timer-digits"
-                className="font-mono text-5xl sm:text-6xl font-semibold tracking-tight text-[#1C1917]"
+                className="font-mono text-5xl sm:text-6xl font-semibold tracking-tight text-ink"
               >
                 {formatTime(timeLeft)}
               </span>
-              <span className="text-xs font-medium uppercase tracking-widest text-[#78716C] mt-2">
+              <span className="text-xs font-medium uppercase tracking-widest text-ink-muted mt-2">
                 {phase === 'work' ? 'Focus' : phase === 'shortBreak' ? 'Break' : 'Long Break'}
               </span>
-              <span className="text-[11px] text-[#A8A29E] mt-1">
+              <span className="text-[11px] text-ink-faint mt-1">
                 {autoStartNext ? 'Auto-shifts into break' : 'Manual shift'}
               </span>
             </div>
@@ -394,7 +394,7 @@ export function PomodoroTimer({ onSessionComplete, soundEnabled }: PomodoroTimer
             id="pomodoro-reset-btn"
             onClick={handleReset}
             title="Reset timer"
-            className="p-3 rounded-full border border-[#E7E3DC] text-[#78716C] hover:text-[#292524] hover:bg-[#F7F5F0] transition-colors"
+            className="p-3 rounded-full border border-line text-ink-muted hover:text-ink-body hover:bg-surface-subtle transition-colors"
           >
             <RotateCcw className="w-4 h-4" />
           </button>
@@ -404,8 +404,8 @@ export function PomodoroTimer({ onSessionComplete, soundEnabled }: PomodoroTimer
             onClick={handleStartPause}
             className={`px-8 py-3.5 rounded-full font-medium text-sm flex items-center gap-2.5 transition-all shadow-xs ${
               isRunning
-                ? 'bg-[#EFECE6] text-[#292524] hover:bg-[#E5E0D8]'
-                : 'bg-[#1C1917] text-[#FAF8F5] hover:bg-[#2E2A27]'
+                ? 'bg-surface-muted text-ink-body hover:bg-surface-active'
+                : 'bg-ink text-canvas hover:bg-ink-hover'
             }`}
           >
             {isRunning ? (
@@ -425,29 +425,29 @@ export function PomodoroTimer({ onSessionComplete, soundEnabled }: PomodoroTimer
             id="pomodoro-skip-btn"
             onClick={handleSkipPhase}
             title="Skip to next phase"
-            className="p-3 rounded-full border border-[#E7E3DC] text-[#78716C] hover:text-[#292524] hover:bg-[#F7F5F0] transition-colors"
+            className="p-3 rounded-full border border-line text-ink-muted hover:text-ink-body hover:bg-surface-subtle transition-colors"
           >
             <SkipForward className="w-4 h-4" />
           </button>
         </div>
 
         {/* Cycle dots & Auto-transition toggle */}
-        <div className="mt-10 pt-6 border-t border-[#F0ECE4] flex flex-wrap items-center justify-between gap-4 text-xs text-[#78716C]">
+        <div className="mt-10 pt-6 border-t border-track flex flex-wrap items-center justify-between gap-4 text-xs text-ink-muted">
           <div className="flex items-center gap-2">
-            <span className="font-medium text-[#44403C]">Cycle {completedCycles % cyclesBeforeLongBreak + 1} of {cyclesBeforeLongBreak}:</span>
+            <span className="font-medium text-ink-secondary">Cycle {completedCycles % cyclesBeforeLongBreak + 1} of {cyclesBeforeLongBreak}:</span>
             <div className="flex items-center gap-1.5">
               {Array.from({ length: cyclesBeforeLongBreak }).map((_, i) => (
                 <span
                   key={i}
                   className={`w-2.5 h-2.5 rounded-full transition-colors ${
                     i < (completedCycles % cyclesBeforeLongBreak)
-                      ? 'bg-[#C86D51]'
-                      : 'bg-[#E7E3DC]'
+                      ? 'bg-accent-focus'
+                      : 'bg-line'
                   }`}
                 />
               ))}
             </div>
-            <span className="text-[#A8A29E] ml-1">({completedCycles} done)</span>
+            <span className="text-ink-faint ml-1">({completedCycles} done)</span>
           </div>
 
           <div className="flex items-center gap-4">
@@ -457,7 +457,7 @@ export function PomodoroTimer({ onSessionComplete, soundEnabled }: PomodoroTimer
                 type="checkbox"
                 checked={autoStartNext}
                 onChange={(e) => setAutoStartNext(e.target.checked)}
-                className="w-3.5 h-3.5 rounded accent-[#C86D51]"
+                className="w-3.5 h-3.5 rounded accent-accent-focus"
               />
               <span>Auto-shift</span>
             </label>
@@ -465,7 +465,7 @@ export function PomodoroTimer({ onSessionComplete, soundEnabled }: PomodoroTimer
             <button
               id="pomodoro-settings-toggle"
               onClick={() => setShowSettings(!showSettings)}
-              className="flex items-center gap-1 hover:text-[#292524] transition-colors"
+              className="flex items-center gap-1 hover:text-ink-body transition-colors"
             >
               <Settings2 className="w-3.5 h-3.5" />
               <span>Presets</span>
@@ -475,14 +475,14 @@ export function PomodoroTimer({ onSessionComplete, soundEnabled }: PomodoroTimer
 
         {/* Interval Settings Collapsible */}
         {showSettings && (
-          <div id="pomodoro-settings-panel" className="mt-4 p-4 rounded-xl bg-[#FAF8F5] border border-[#E7E3DC] text-xs space-y-3">
-            <p className="font-medium text-[#292524]">Select preset:</p>
+          <div id="pomodoro-settings-panel" className="mt-4 p-4 rounded-xl bg-canvas border border-line text-xs space-y-3">
+            <p className="font-medium text-ink-body">Select preset:</p>
             <div className="flex flex-wrap gap-2">
               <button
                 id="preset-25-5-btn"
                 onClick={() => handleApplyPreset(25, 5)}
                 className={`px-3 py-1.5 rounded-lg border ${
-                  workDuration === 25 ? 'border-[#C86D51] bg-[#FAF3F0] text-[#C86D51] font-semibold' : 'border-[#E7E3DC] bg-white'
+                  workDuration === 25 ? 'border-accent-focus bg-tint-focus text-accent-focus font-semibold' : 'border-line bg-surface'
                 }`}
               >
                 25m / 5m
@@ -491,7 +491,7 @@ export function PomodoroTimer({ onSessionComplete, soundEnabled }: PomodoroTimer
                 id="preset-50-10-btn"
                 onClick={() => handleApplyPreset(50, 10)}
                 className={`px-3 py-1.5 rounded-lg border ${
-                  workDuration === 50 ? 'border-[#C86D51] bg-[#FAF3F0] text-[#C86D51] font-semibold' : 'border-[#E7E3DC] bg-white'
+                  workDuration === 50 ? 'border-accent-focus bg-tint-focus text-accent-focus font-semibold' : 'border-line bg-surface'
                 }`}
               >
                 50m / 10m
@@ -500,7 +500,7 @@ export function PomodoroTimer({ onSessionComplete, soundEnabled }: PomodoroTimer
                 id="preset-15-3-btn"
                 onClick={() => handleApplyPreset(15, 3)}
                 className={`px-3 py-1.5 rounded-lg border ${
-                  workDuration === 15 ? 'border-[#C86D51] bg-[#FAF3F0] text-[#C86D51] font-semibold' : 'border-[#E7E3DC] bg-white'
+                  workDuration === 15 ? 'border-accent-focus bg-tint-focus text-accent-focus font-semibold' : 'border-line bg-surface'
                 }`}
               >
                 15m / 3m
@@ -511,12 +511,12 @@ export function PomodoroTimer({ onSessionComplete, soundEnabled }: PomodoroTimer
       </div>
 
       {/* Break suggestion card */}
-      <div className="bg-[#FAF8F5] border border-[#E7E3DC] rounded-xl p-4 text-xs text-[#57534E] flex items-start gap-3">
-        <div className="p-1.5 rounded-md bg-[#EFECE6] text-[#C86D51] shrink-0 mt-0.5">
+      <div className="bg-canvas border border-line rounded-xl p-4 text-xs text-ink-secondary flex items-start gap-3">
+        <div className="p-1.5 rounded-md bg-surface-muted text-accent-focus shrink-0 mt-0.5">
           <CheckCircle2 className="w-4 h-4" />
         </div>
         <div>
-          <span className="font-semibold text-[#1C1917]">Tip: </span>
+          <span className="font-semibold text-ink">Tip: </span>
           When the timer rings, look 20 feet away to relax your eyes, stretch, and hydrate.
         </div>
       </div>

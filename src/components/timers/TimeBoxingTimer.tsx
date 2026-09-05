@@ -314,16 +314,16 @@ export function TimeBoxingTimer({ onSessionComplete, soundEnabled }: TimeBoxingT
       {transitionNotification && (
         <div 
           id="timebox-transition-alert"
-          className="p-4 rounded-xl bg-[#EFECE6] border border-[#DDD7CD] text-[#2C2926] text-sm flex items-center justify-between shadow-xs transition-all"
+          className="p-4 rounded-xl bg-surface-muted border border-line-strong text-ink-body text-sm flex items-center justify-between shadow-xs transition-all"
         >
           <div className="flex items-center gap-3">
-            <Sparkles className="w-4 h-4 text-[#B45309] shrink-0" />
+            <Sparkles className="w-4 h-4 text-accent-box shrink-0" />
             <span className="font-medium">{transitionNotification}</span>
           </div>
           <button 
             id="dismiss-timebox-alert"
             onClick={() => setTransitionNotification(null)}
-            className="text-xs text-[#78716C] hover:text-[#292524] underline ml-3"
+            className="text-xs text-ink-muted hover:text-ink-body underline ml-3"
           >
             Dismiss
           </button>
@@ -331,17 +331,17 @@ export function TimeBoxingTimer({ onSessionComplete, soundEnabled }: TimeBoxingT
       )}
 
       {/* Active Box Card */}
-      <div className="bg-[#FFFFFF] border border-[#E7E3DC] rounded-2xl p-6 sm:p-10 shadow-xs relative overflow-hidden">
+      <div className="bg-surface border border-line rounded-2xl p-6 sm:p-10 shadow-xs relative overflow-hidden">
         {/* Active Box Header */}
         <div className="text-center mb-6">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium bg-[#FAF8F5] text-[#78716C] border border-[#E7E3DC] mb-2">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium bg-canvas text-ink-muted border border-line mb-2">
             <span>Box {activeBoxIndex + 1} of {boxes.length}</span>
             <span>&bull;</span>
-            <span className={activeBox?.isBreak ? 'text-[#58705C] font-semibold' : 'text-[#B45309] font-semibold'}>
+            <span className={activeBox?.isBreak ? 'text-accent-break font-semibold' : 'text-accent-box font-semibold'}>
               {activeBox?.isBreak ? 'Break' : 'Focus'}
             </span>
           </div>
-          <h2 className="text-lg sm:text-xl font-medium text-[#1C1917]">
+          <h2 className="text-lg sm:text-xl font-medium text-ink">
             {activeBox?.title || 'Study Block'}
           </h2>
         </div>
@@ -350,12 +350,12 @@ export function TimeBoxingTimer({ onSessionComplete, soundEnabled }: TimeBoxingT
         <div className="flex flex-col items-center justify-center my-6">
           <div className="relative w-64 h-64 sm:w-72 sm:h-72 flex items-center justify-center">
             <svg className="w-full h-full -rotate-90 transform" viewBox="0 0 100 100">
-              <circle cx="50" cy="50" r="44" stroke="#F0ECE4" strokeWidth="4" fill="transparent" />
+              <circle cx="50" cy="50" r="44" stroke="var(--color-track)" strokeWidth="4" fill="transparent" />
               <circle
                 cx="50"
                 cy="50"
                 r="44"
-                stroke={activeBox?.isBreak ? '#58705C' : '#B45309'}
+                stroke={activeBox?.isBreak ? 'var(--color-accent-break)' : 'var(--color-accent-box)'}
                 strokeWidth="4"
                 strokeLinecap="round"
                 fill="transparent"
@@ -366,13 +366,13 @@ export function TimeBoxingTimer({ onSessionComplete, soundEnabled }: TimeBoxingT
             </svg>
 
             <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-              <span id="timebox-timer-digits" className="font-mono text-5xl sm:text-6xl font-semibold tracking-tight text-[#1C1917]">
+              <span id="timebox-timer-digits" className="font-mono text-5xl sm:text-6xl font-semibold tracking-tight text-ink">
                 {formatTime(timeLeft)}
               </span>
-              <span className="text-xs font-medium uppercase tracking-widest text-[#78716C] mt-2">
+              <span className="text-xs font-medium uppercase tracking-widest text-ink-muted mt-2">
                 {activeBox?.isBreak ? 'Break' : 'Focus'}
               </span>
-              <span className="text-[11px] text-[#A8A29E] mt-1">
+              <span className="text-[11px] text-ink-faint mt-1">
                 {autoShiftNext ? 'Auto-shifts into next box' : 'Manual shift'}
               </span>
             </div>
@@ -385,7 +385,7 @@ export function TimeBoxingTimer({ onSessionComplete, soundEnabled }: TimeBoxingT
             id="timebox-reset-btn"
             onClick={handleReset}
             title="Reset timer"
-            className="p-3 rounded-full border border-[#E7E3DC] text-[#78716C] hover:text-[#292524] hover:bg-[#F7F5F0] transition-colors"
+            className="p-3 rounded-full border border-line text-ink-muted hover:text-ink-body hover:bg-surface-subtle transition-colors"
           >
             <RotateCcw className="w-4 h-4" />
           </button>
@@ -395,8 +395,8 @@ export function TimeBoxingTimer({ onSessionComplete, soundEnabled }: TimeBoxingT
             onClick={handleStartPause}
             className={`px-8 py-3.5 rounded-full font-medium text-sm flex items-center gap-2.5 transition-all shadow-xs ${
               isRunning
-                ? 'bg-[#EFECE6] text-[#292524] hover:bg-[#E5E0D8]'
-                : 'bg-[#1C1917] text-[#FAF8F5] hover:bg-[#2E2A27]'
+                ? 'bg-surface-muted text-ink-body hover:bg-surface-active'
+                : 'bg-ink text-canvas hover:bg-ink-hover'
             }`}
           >
             {isRunning ? (
@@ -422,16 +422,16 @@ export function TimeBoxingTimer({ onSessionComplete, soundEnabled }: TimeBoxingT
             id="timebox-skip-btn"
             onClick={handleSkip}
             title="Skip to next box"
-            className="p-3 rounded-full border border-[#E7E3DC] text-[#78716C] hover:text-[#292524] hover:bg-[#F7F5F0] transition-colors"
+            className="p-3 rounded-full border border-line text-ink-muted hover:text-ink-body hover:bg-surface-subtle transition-colors"
           >
             <SkipForward className="w-4 h-4" />
           </button>
         </div>
 
         {/* Auto shift toggle */}
-        <div className="mt-8 pt-4 border-t border-[#F0ECE4] flex items-center justify-between text-xs text-[#78716C]">
+        <div className="mt-8 pt-4 border-t border-track flex items-center justify-between text-xs text-ink-muted">
           <div className="flex items-center gap-2">
-            <span>Session: <strong className="text-[#292524]">{totalStudyMinutes}m focus</strong>, {totalBreakMinutes}m break</span>
+            <span>Session: <strong className="text-ink-body">{totalStudyMinutes}m focus</strong>, {totalBreakMinutes}m break</span>
           </div>
           <label className="flex items-center gap-2 cursor-pointer select-none">
             <input
@@ -439,7 +439,7 @@ export function TimeBoxingTimer({ onSessionComplete, soundEnabled }: TimeBoxingT
               type="checkbox"
               checked={autoShiftNext}
               onChange={(e) => setAutoShiftNext(e.target.checked)}
-              className="w-3.5 h-3.5 rounded accent-[#B45309]"
+              className="w-3.5 h-3.5 rounded accent-accent-box"
             />
             <span>Auto-shift</span>
           </label>
@@ -447,16 +447,16 @@ export function TimeBoxingTimer({ onSessionComplete, soundEnabled }: TimeBoxingT
       </div>
 
       {/* Schedule / Time Boxes List Card */}
-      <div className="bg-[#FFFFFF] border border-[#E7E3DC] rounded-2xl p-6 shadow-xs space-y-4">
+      <div className="bg-surface border border-line rounded-2xl p-6 shadow-xs space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-sm font-semibold text-[#1C1917]">Scheduled Boxes</h3>
-            <p className="text-xs text-[#78716C]">Click any box to switch or add blocks</p>
+            <h3 className="text-sm font-semibold text-ink">Scheduled Boxes</h3>
+            <p className="text-xs text-ink-muted">Click any box to switch or add blocks</p>
           </div>
           <button
             id="timebox-add-toggle-btn"
             onClick={() => setShowAddForm(!showAddForm)}
-            className="px-3 py-1.5 rounded-lg border border-[#E7E3DC] text-xs font-medium text-[#292524] hover:bg-[#FAF8F5] flex items-center gap-1.5 transition-colors"
+            className="px-3 py-1.5 rounded-lg border border-line text-xs font-medium text-ink-body hover:bg-canvas flex items-center gap-1.5 transition-colors"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>Add Box</span>
@@ -465,8 +465,8 @@ export function TimeBoxingTimer({ onSessionComplete, soundEnabled }: TimeBoxingT
 
         {/* Add Box Form */}
         {showAddForm && (
-          <form onSubmit={handleAddBox} className="p-4 rounded-xl bg-[#FAF8F5] border border-[#E7E3DC] space-y-3 text-xs">
-            <div className="font-medium text-[#292524]">New Time Box</div>
+          <form onSubmit={handleAddBox} className="p-4 rounded-xl bg-canvas border border-line space-y-3 text-xs">
+            <div className="font-medium text-ink-body">New Time Box</div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <input
                 type="text"
@@ -474,7 +474,7 @@ export function TimeBoxingTimer({ onSessionComplete, soundEnabled }: TimeBoxingT
                 onChange={(e) => setNewTitle(e.target.value)}
                 placeholder="Title..."
                 required
-                className="sm:col-span-2 px-3 py-2 rounded-lg border border-[#E7E3DC] bg-white text-xs focus:outline-none focus:border-[#B45309]"
+                className="sm:col-span-2 px-3 py-2 rounded-lg border border-line bg-surface text-xs focus:outline-none focus:border-accent-box"
               />
               <div className="flex items-center gap-2">
                 <input
@@ -483,19 +483,19 @@ export function TimeBoxingTimer({ onSessionComplete, soundEnabled }: TimeBoxingT
                   max="180"
                   value={newDuration}
                   onChange={(e) => setNewDuration(Number(e.target.value))}
-                  className="w-20 px-3 py-2 rounded-lg border border-[#E7E3DC] bg-white text-xs text-center focus:outline-none focus:border-[#B45309]"
+                  className="w-20 px-3 py-2 rounded-lg border border-line bg-surface text-xs text-center focus:outline-none focus:border-accent-box"
                 />
-                <span className="text-[#78716C]">mins</span>
+                <span className="text-ink-muted">mins</span>
               </div>
             </div>
 
             <div className="flex items-center justify-between pt-1">
-              <label className="flex items-center gap-2 cursor-pointer select-none text-[#57534E]">
+              <label className="flex items-center gap-2 cursor-pointer select-none text-ink-secondary">
                 <input
                   type="checkbox"
                   checked={newIsBreak}
                   onChange={(e) => setNewIsBreak(e.target.checked)}
-                  className="rounded accent-[#58705C]"
+                  className="rounded accent-accent-break"
                 />
                 <span>Break / buffer</span>
               </label>
@@ -504,13 +504,13 @@ export function TimeBoxingTimer({ onSessionComplete, soundEnabled }: TimeBoxingT
                 <button
                   type="button"
                   onClick={() => setShowAddForm(false)}
-                  className="px-3 py-1.5 rounded-lg text-xs text-[#78716C] hover:text-[#292524]"
+                  className="px-3 py-1.5 rounded-lg text-xs text-ink-muted hover:text-ink-body"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-1.5 rounded-lg bg-[#1C1917] text-[#FAF8F5] text-xs font-medium hover:bg-[#2E2A27]"
+                  className="px-4 py-1.5 rounded-lg bg-ink text-canvas text-xs font-medium hover:bg-ink-hover"
                 >
                   Add Box
                 </button>
@@ -529,19 +529,19 @@ export function TimeBoxingTimer({ onSessionComplete, soundEnabled }: TimeBoxingT
                 onClick={() => handleSelectBox(index)}
                 className={`flex items-center justify-between p-3.5 rounded-xl border cursor-pointer transition-all ${
                   isActive
-                    ? 'border-[#B45309] bg-[#FFFBF7] shadow-xs'
+                    ? 'border-accent-box bg-surface shadow-xs'
                     : box.completed
-                      ? 'border-[#E7E3DC] bg-[#F7F5F0] opacity-75'
-                      : 'border-[#E7E3DC] bg-[#FAF8F5] hover:border-[#D4CEBF]'
+                      ? 'border-line bg-surface-subtle opacity-75'
+                      : 'border-line bg-canvas hover:border-line-strong'
                 }`}
               >
                 <div className="flex items-center gap-3">
                   <div className={`p-1.5 rounded-md ${
                     box.completed 
-                      ? 'text-[#58705C] bg-[#EAF0EB]' 
+                      ? 'text-accent-break bg-tint-break' 
                       : box.isBreak 
-                        ? 'text-[#58705C] bg-[#F0F3F0]' 
-                        : 'text-[#B45309] bg-[#FBF2E9]'
+                        ? 'text-accent-break bg-tint-break' 
+                        : 'text-accent-box bg-surface-muted'
                   }`}>
                     {box.completed ? (
                       <CheckCircle className="w-4 h-4" />
@@ -554,16 +554,16 @@ export function TimeBoxingTimer({ onSessionComplete, soundEnabled }: TimeBoxingT
 
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className={`text-xs font-medium ${box.completed ? 'line-through text-[#78716C]' : 'text-[#1C1917]'}`}>
+                      <span className={`text-xs font-medium ${box.completed ? 'line-through text-ink-muted' : 'text-ink'}`}>
                         {box.title}
                       </span>
                       {isActive && (
-                        <span className="px-1.5 py-0.5 rounded text-[10px] bg-[#B45309] text-white font-medium">
+                        <span className="px-1.5 py-0.5 rounded text-[10px] bg-accent-box text-canvas font-medium">
                           Active
                         </span>
                       )}
                     </div>
-                    <div className="text-[11px] text-[#78716C] flex items-center gap-2">
+                    <div className="text-[11px] text-ink-muted flex items-center gap-2">
                       <span>{box.durationMinutes}m</span>
                       <span>&bull;</span>
                       <span>{box.isBreak ? 'Break' : 'Focus'}</span>
@@ -576,7 +576,7 @@ export function TimeBoxingTimer({ onSessionComplete, soundEnabled }: TimeBoxingT
                     <button
                       onClick={() => handleDeleteBox(box.id, index)}
                       title="Delete box"
-                      className="p-1.5 text-[#A8A29E] hover:text-[#DC2626] rounded transition-colors"
+                      className="p-1.5 text-ink-faint hover:text-accent-danger rounded transition-colors"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
