@@ -1,16 +1,20 @@
 ## Reflection
-Q1 — The user
+Q1. Who are your users, and what changes for them?
 
-The targeted users are students/working adults or anyone that wants to beat procrastination and manage their time properly. The app/website is mainly for studying or deep contration while working. users should be able to focus better and achieve higher quality work while feeling less drained.
+My primary user is an internal frozen-yogurt outlet manager or shift supervisor responsible for inventory control. Today, the manager would typically review stock records item by item, compare quantities against what the outlet needs, identify shortages, and then decide what requires action. My product removes part of that manual interpretation by presenting inventory status in a way that highlights items needing attention, so the manager can move directly from reviewing data to managing exceptions. The key change is therefore not simply “saving time,” but replacing a line-by-line stock review with an inventory view while keeping the manager responsible for operational and purchasing decisions.
 
-Q2 — Augmented vs constrained
+Q2. Augmented capacity and constrained capacity
 
-The AI was useful for repetitive testing and finding hidden defects, such as broken scheduling, unused fonts, and service-worker issues. But it also introduced at least five regressions, including one that turned a data bug into data loss. 
+The AI pairing augmented my capacity by allowing me to turn an operating idea into a working, deployed interface without having to personally write the code, so more of my time went into deciding what the screen should do and what information mattered to the user. At the same time, it constrained me because the model could generate code and implementation decisions faster than I could verify them. I could confidently judge whether the visible workflow made sense, but I could not evaluate every technical choice, dependency, or line of generated code. Therefore, I experienced a clear shift in the bottleneck where building became fast, but verification became harder, and I learned the product's decision path much more than I learned how the underlying code worked.
 
-Q3 — Problems and responses
+Q3. In the loop
 
-The app/website had many bugs that took many rounds of fixing before a single function was usable. with a self checking prompt used in claude, the bot was able to run through several stages of checking without constant prompts to fix new errors that pop up after an initial round of debugging.
+My judgment was genuinely needed when I rejected or corrected something the AI produced—for example, “INSERT EXACT PROMPT WHERE YOU CHANGED OR REJECTED SOMETHING” because my knowledge of the intended user changed the outcome. However, there were also moments when I was only nominally in the loop, such as “INSERT PROMPT WHERE YOU SIMPLY APPROVED/PROCEEDED”, because I accepted the result without being able to assess every technical consequence. If this product were real, basic inventory calculations and low-stock flags could be out of the loop once data accuracy, thresholds, error rates, and logging had been validated; monitoring unusual patterns should be on the loop; and consequential purchasing decisions should remain in the loop because managers may know contextual information, such as demand changes or stock transfers, that the system does not. This build showed me that human approval only adds control when the person can actually evaluate and challenge the decision.
 
-Q4 — Augment vs replace
+Q4. What did it build?
 
-The AI should replace humans where errors are obvious and machine-checkable. Humans should remain involved where failures require judgement. In those cases, AI should augment rather than replace human decision-making.
+The most important thing the AI built that I never sketched was the application structure and behaviour around the visible inventory screen. I had focused on what information the manager should see, but I had not specified every decision, such as loading behaviour, ordering, empty states, error handling, or how unusual values should appear, so the model made those choices for me. I noticed this mainly during the later stages of the build when I compared the shipped application with my original sketch and realised that reasonable looking defaults had quietly become part of the product. To catch this earlier, I should have reviewed every iteration by asking three questions: what did I request, what changed that I did not request, and what behaviour now exists that I never specified. The key lesson was that anything left unspecified is not left undecided; it is simply decided by the model.
+
+Q5. Learning pointers
+
+My build suggests three actions for an organisation using these tools at scale. First, any AI-generated application that moves from a personal prototype into shared operational use should have a named business owner and technical review, because my simple inventory screen contained more application structure than I originally realised. Second, organisations should provide approved defaults for areas such as data access, logging, authentication, and deployment, because my build showed that unspecified choices quickly become product behaviour. Third, the prompt history, ownership, assumptions, and key decisions should stay with the application so another employee can reconstruct why it was built that way after the original creator leaves. The broader lesson from my experience is that AI reduces the cost of producing software much faster than it reduces the cost of reviewing, understanding, and governing it.
