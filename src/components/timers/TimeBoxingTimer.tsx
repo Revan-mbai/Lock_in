@@ -3,7 +3,9 @@ import { Play, Pause, RotateCcw, SkipForward, Plus, Trash2, CheckCircle, Coffee,
 import { formatTime } from '../../utils/formatters';
 import { playFocusCompleteChime, playBreakCompleteChime } from '../../utils/audio';
 import { TimeBoxItem, FocusSessionLog } from '../../types';
-import { loadTimeBoxingState, saveTimeBoxingState, MAX_LIVE_GAP_SECONDS } from '../../utils/timerPersistence';
+import { loadTimeBoxingState, saveTimeBoxingState } from '../../utils/timerPersistence';
+import { useTransitionBanner } from '../../hooks/useTransitionBanner';
+import { useCountdown } from '../../hooks/useCountdown';
 
 interface TimeBoxingTimerProps {
   onSessionComplete: (log: Omit<FocusSessionLog, 'id' | 'completedAt'>) => void;
@@ -34,33 +36,13 @@ export function TimeBoxingTimer({ onSessionComplete, soundEnabled }: TimeBoxingT
   const [newIsBreak, setNewIsBreak] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
 
-  const [transitionNotification, setTransitionNotification] = useState<string | null>(null);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const lastTickRef = useRef<number>(Date.now());
-  const notificationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { message: bannerMessage, show: showBanner, dismiss: dismissBanner } =
+    useTransitionBanner('Time Boxing');
+
   // What the Skip click currently being processed acted on. Cleared after every commit below,
   // so it lives exactly as long as the double-click window it guards.
   const lastSkipSignatureRef = useRef<string | null>(null);
-  // Guards the box transition so a single expiry can only fire it once. Starts false: the
-  // loader only returns isRunning with timeLeft at 0 when the block really did run out while
-  // the app was briefly away, and that session still deserves to be logged.
-  const transitionFiredRef = useRef(false);
 
-  // Show a transition banner, replacing any banner still counting down.
-  const showTransitionNotification = (message: string) => {
-    setTransitionNotification(message);
-    if (notificationTimeoutRef.current) clearTimeout(notificationTimeoutRef.current);
-    notificationTimeoutRef.current = setTimeout(() => {
-      setTransitionNotification(null);
-      notificationTimeoutRef.current = null;
-    }, 4000);
-  };
-
-  useEffect(() => {
-    return () => {
-      if (notificationTimeoutRef.current) clearTimeout(notificationTimeoutRef.current);
-    };
-  }, []);
 
   // No dependency array on purpose: the Skip guard only has to outlive clicks dispatched
   // before React re-rendered. Holding the signature any longer killed the button for any
@@ -134,7 +116,7 @@ export function TimeBoxingTimer({ onSessionComplete, soundEnabled }: TimeBoxingT
       setActiveBoxIndex(nextIndex);
       setTimeLeft(nextBox.durationMinutes * 60);
 
-      showTransitionNotification(
+      showBanner(
         `"${completedItem.title}" done. Starting "${nextBox.title}" (${nextBox.durationMinutes}m).`
       );
 
@@ -148,59 +130,24 @@ export function TimeBoxingTimer({ onSessionComplete, soundEnabled }: TimeBoxingT
       // mistaken for a box that still has time left on it.
       setIsRunning(false);
       setTimeLeft(0);
-      showTransitionNotification('All scheduled boxes completed.');
+      showBanner('All scheduled boxes completed.');
     }
   };
 
-  // The updater stays pure — scheduling the box transition from inside it made React run
-  // the transition twice under StrictMode, which logged every completed box twice.
-  useEffect(() => {
-    if (!isRunning) return;
+  // Shared countdown engine, used for its effects only. This timer keeps its own start and
+  // reset handlers because they also clear box completion flags, and its own signature-based
+  // skip guard: the hook's guard latches until the clock leaves zero, and the terminal "all
+  // boxes finished" branch parks it AT zero, which is exactly how that guard once got stuck
+  // and killed the Skip button for good.
+  useCountdown({
+    timeLeft,
+    setTimeLeft,
+    isRunning,
+    setIsRunning,
+    totalSeconds: activeBoxTotalSeconds,
+    onExpire: (elapsed) => handleBoxComplete(activeBoxIndex, elapsed),
+  });
 
-    lastTickRef.current = Date.now();
-
-    const tick = () => {
-      // Advance by whole seconds and carry the sub-second remainder. Rounding (and flooring
-      // at 1) meant the extra visibilitychange tick could charge a full second for a few
-      // milliseconds, so the countdown ran fast on every tab switch.
-      const delta = Math.floor((Date.now() - lastTickRef.current) / 1000);
-      if (delta <= 0) return;
-      lastTickRef.current += delta * 1000;
-      if (delta > MAX_LIVE_GAP_SECONDS) {
-        // Far more time passed than any block can span, so the machine was asleep rather
-        // than the tab merely backgrounded. Pause instead of banking a session.
-        setIsRunning(false);
-        return;
-      }
-      setTimeLeft((prev) => Math.max(0, prev - delta));
-    };
-
-    timerRef.current = setInterval(tick, 1000);
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        tick();
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-      timerRef.current = null;
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [isRunning]);
-
-  // Advance to the next box once the countdown reaches zero.
-  useEffect(() => {
-    if (timeLeft > 0) {
-      transitionFiredRef.current = false;
-      return;
-    }
-    if (!isRunning || transitionFiredRef.current) return;
-    transitionFiredRef.current = true;
-    handleBoxComplete(activeBoxIndex, activeBoxTotalSeconds);
-  }, [timeLeft, isRunning, activeBoxIndex, activeBoxTotalSeconds]);
 
   const handleSelectBox = (index: number) => {
     // Re-selecting the box already running would reset its countdown and pause it, so a
@@ -311,18 +258,18 @@ export function TimeBoxingTimer({ onSessionComplete, soundEnabled }: TimeBoxingT
 
   return (
     <div id="time-boxing-timer-container" className="max-w-2xl mx-auto space-y-6">
-      {transitionNotification && (
+      {bannerMessage && (
         <div 
           id="timebox-transition-alert"
           className="p-4 rounded-xl bg-surface-muted border border-line-strong text-ink-body text-sm flex items-center justify-between shadow-xs transition-all"
         >
           <div className="flex items-center gap-3">
             <Sparkles className="w-4 h-4 text-accent-box shrink-0" />
-            <span className="font-medium">{transitionNotification}</span>
+            <span className="font-medium">{bannerMessage}</span>
           </div>
           <button 
             id="dismiss-timebox-alert"
-            onClick={() => setTransitionNotification(null)}
+            onClick={() => dismissBanner()}
             className="text-xs text-ink-muted hover:text-ink-body underline ml-3"
           >
             Dismiss

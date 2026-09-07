@@ -61,7 +61,7 @@ function hmrCompatPlugin(): Plugin {
           .replace(/ws\.send\(JSON\.stringify\(data\)\);/g, 'if (ws && typeof ws.send === "function") { try { ws.send(JSON.stringify(data)); } catch {} }')
           .replace(/wsTransport\.send\(data\);/g, 'if (wsTransport && typeof wsTransport.send === "function") { try { wsTransport.send(data); } catch {} }')
           .replace(/this\.transport\.send\(payload\)\.catch/g, '(this.transport?.send?.(payload) || Promise.resolve()).catch')
-          .replace(/error:\s*\(err\)\s*=>\s*console\.error\(\"\[vite\]\",\s*err\)/g, 'error: (err) => { if (err && (String(err).includes("send") || String(err).includes("WebSocket") || String(err).includes("connect"))) return; console.error("[vite]", err); }');
+          .replace(/error:\s*\(err\)\s*=>\s*console\.error\("\[vite\]",\s*err\)/g, 'error: (err) => { if (err && (String(err).includes("send") || String(err).includes("WebSocket") || String(err).includes("connect"))) return; console.error("[vite]", err); }');
       }
     },
     transformIndexHtml: {
@@ -145,7 +145,7 @@ export default defineConfig(() => {
           id: '/',
           name: 'Lock In - Focus & Break Suite',
           short_name: 'Lock In',
-          description: 'A warm, minimalistic study suite with automated focus and break timers for Pomodoro, Flowtime, 90-Minute Cycles, Time Boxing, and the 52/17 Rule.',
+          description: 'A warm, minimalistic study suite with automated focus and break timers for Pomodoro, Flowtime, 90-Minute Cycles, Time Boxing, the 52/17 Rule, Retrieval Practice, Interleaved Practice and the Feynman Technique.',
           theme_color: '#FAF8F5',
           background_color: '#FAF8F5',
           display: 'standalone',

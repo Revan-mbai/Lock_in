@@ -1,9 +1,33 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Play, Pause, RotateCcw, SkipForward, CheckCircle2, Sparkles, Settings2 } from 'lucide-react';
 import { formatTime } from '../../utils/formatters';
 import { playFocusCompleteChime, playBreakCompleteChime } from '../../utils/audio';
 import { FocusSessionLog } from '../../types';
-import { loadPomodoroState, savePomodoroState, MAX_LIVE_GAP_SECONDS } from '../../utils/timerPersistence';
+import { loadPomodoroState, savePomodoroState } from '../../utils/timerPersistence';
+import { useTransitionBanner } from '../../hooks/useTransitionBanner';
+import { useCountdown } from '../../hooks/useCountdown';
+
+/**
+ * Named focus/break ratios. Several are study methods in their own right, but they differ from
+ * Pomodoro only in their numbers, so they live here as presets rather than as separate tabs.
+ * Work durations must stay distinct — the active preset is identified by `workDuration`.
+ */
+const POMODORO_PRESETS: {
+  id: string;
+  work: number;
+  shortBreak: number;
+  /** Must exceed `shortBreak`, or the every-fourth-cycle "long" break would be the shorter one. */
+  longBreak: number;
+  label: string;
+  note: string;
+}[] = [
+  { id: 'classic', work: 25, shortBreak: 5, longBreak: 15, label: 'Classic', note: 'The original Pomodoro ratio' },
+  { id: 'gentle', work: 30, shortBreak: 5, longBreak: 15, label: 'Gentle start', note: 'A slightly longer block, same short break' },
+  { id: 'animedoro', work: 40, shortBreak: 20, longBreak: 30, label: 'Animedoro', note: 'Long block, long break — one episode of something' },
+  { id: 'period', work: 45, shortBreak: 15, longBreak: 30, label: 'School period', note: 'Matches a typical class-and-recess rhythm' },
+  { id: 'deep', work: 50, shortBreak: 10, longBreak: 20, label: 'Deep work', note: 'Fewer, longer blocks for demanding tasks' },
+  { id: 'warmup', work: 15, shortBreak: 3, longBreak: 10, label: 'Warm-up', note: 'Short blocks to break through inertia' },
+];
 
 interface PomodoroTimerProps {
   onSessionComplete: (log: Omit<FocusSessionLog, 'id' | 'completedAt'>) => void;
@@ -18,8 +42,8 @@ export function PomodoroTimer({ onSessionComplete, soundEnabled }: PomodoroTimer
   // Preset durations (in minutes)
   const [workDuration, setWorkDuration] = useState(() => saved?.workDuration ?? 25);
   const [shortBreakDuration, setShortBreakDuration] = useState(() => saved?.shortBreakDuration ?? 5);
-  // No UI changes these two; they are read from saved state and otherwise fixed.
-  const [longBreakDuration] = useState(() => saved?.longBreakDuration ?? 15);
+  // The long break comes from the chosen preset; the cycle count has no UI and is fixed.
+  const [longBreakDuration, setLongBreakDuration] = useState(() => saved?.longBreakDuration ?? 15);
   const [cyclesBeforeLongBreak] = useState(() => saved?.cyclesBeforeLongBreak ?? 4);
 
   const [phase, setPhase] = useState<'work' | 'shortBreak' | 'longBreak'>(() => saved?.phase ?? 'work');
@@ -29,31 +53,10 @@ export function PomodoroTimer({ onSessionComplete, soundEnabled }: PomodoroTimer
   const [taskSubject, setTaskSubject] = useState(() => saved?.taskSubject ?? '');
   const [autoStartNext, setAutoStartNext] = useState(() => saved?.autoStartNext ?? true);
   const [showSettings, setShowSettings] = useState(false);
-  const [transitionNotification, setTransitionNotification] = useState<string | null>(null);
 
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const lastTickRef = useRef<number>(Date.now());
-  const notificationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Guards the phase transition so a single expiry can only fire it once. Starts false: the
-  // loader only returns isRunning with timeLeft at 0 when the block really did run out while
-  // the app was briefly away, and that session still deserves to be logged.
-  const transitionFiredRef = useRef(false);
+  const { message: bannerMessage, show: showBanner, dismiss: dismissBanner } =
+    useTransitionBanner('Pomodoro Technique');
 
-  // Show a transition banner, replacing any banner still counting down.
-  const showTransitionNotification = (message: string) => {
-    setTransitionNotification(message);
-    if (notificationTimeoutRef.current) clearTimeout(notificationTimeoutRef.current);
-    notificationTimeoutRef.current = setTimeout(() => {
-      setTransitionNotification(null);
-      notificationTimeoutRef.current = null;
-    }, 4000);
-  };
-
-  useEffect(() => {
-    return () => {
-      if (notificationTimeoutRef.current) clearTimeout(notificationTimeoutRef.current);
-    };
-  }, []);
 
   // Save changes to localStorage
   useEffect(() => {
@@ -123,7 +126,7 @@ export function PomodoroTimer({ onSessionComplete, soundEnabled }: PomodoroTimer
 
       setPhase(nextPhase);
       setTimeLeft(nextDuration * 60);
-      showTransitionNotification(
+      showBanner(
         nextIsLongBreak
           ? `${cyclesBeforeLongBreak} cycles done. ${longBreakDuration}m long break started.`
           : `Focus complete. ${shortBreakDuration}m break started.`
@@ -140,7 +143,7 @@ export function PomodoroTimer({ onSessionComplete, soundEnabled }: PomodoroTimer
 
       setPhase('work');
       setTimeLeft(workDuration * 60);
-      showTransitionNotification(`Break over. ${workDuration}m focus started.`);
+      showBanner(`Break over. ${workDuration}m focus started.`);
 
       if (autoStartNext) {
         setIsRunning(true);
@@ -150,94 +153,39 @@ export function PomodoroTimer({ onSessionComplete, soundEnabled }: PomodoroTimer
     }
   };
 
-  // Main countdown effect. The updater stays pure — scheduling the phase transition from
-  // inside it made React run the transition twice under StrictMode, which logged every
-  // completed session twice.
-  useEffect(() => {
-    if (!isRunning) return;
+  // The countdown engine — tick, expiry detection and the skip guard — is shared by every
+  // timer so that its subtleties live in one place.
+  const countdown = useCountdown({
+    timeLeft,
+    setTimeLeft,
+    isRunning,
+    setIsRunning,
+    totalSeconds: totalPhaseSeconds,
+    onExpire: (elapsed) => handlePhaseTransition(phase, elapsed),
+  });
 
-    lastTickRef.current = Date.now();
 
-    const tick = () => {
-      // Advance by whole seconds and carry the sub-second remainder. Rounding (and flooring
-      // at 1) meant the extra visibilitychange tick could charge a full second for a few
-      // milliseconds, so the countdown ran fast on every tab switch.
-      const delta = Math.floor((Date.now() - lastTickRef.current) / 1000);
-      if (delta <= 0) return;
-      lastTickRef.current += delta * 1000;
-      if (delta > MAX_LIVE_GAP_SECONDS) {
-        // Far more time passed than any block can span, so the machine was asleep rather
-        // than the tab merely backgrounded. Pause instead of banking a session.
-        setIsRunning(false);
-        return;
-      }
-      setTimeLeft((prev) => Math.max(0, prev - delta));
-    };
+  const handleStartPause = countdown.toggle;
 
-    timerRef.current = setInterval(tick, 1000);
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        tick();
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-      timerRef.current = null;
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [isRunning]);
-
-  // Fire the phase transition once the countdown reaches zero. Running it here rather than
-  // inside the tick means it always sees the current task name, sound setting and durations.
-  useEffect(() => {
-    if (timeLeft > 0) {
-      transitionFiredRef.current = false;
-      return;
-    }
-    if (!isRunning || transitionFiredRef.current) return;
-    transitionFiredRef.current = true;
-    handlePhaseTransition(phase, totalPhaseSeconds);
-  }, [timeLeft, isRunning, phase, totalPhaseSeconds]);
-
-  const handleStartPause = () => {
-    // Pressing Play on an exhausted block starts the next one rather than re-completing the
-    // spent one and logging a phantom full-length session.
-    if (!isRunning && timeLeft <= 0) {
-      setTimeLeft(totalPhaseSeconds);
-    }
-    setIsRunning(!isRunning);
-  };
-
-  const handleReset = () => {
-    setIsRunning(false);
-    const duration = phase === 'work' 
-      ? workDuration * 60 
-      : phase === 'shortBreak' 
-        ? shortBreakDuration * 60 
-        : longBreakDuration * 60;
-    setTimeLeft(duration);
-  };
+  const handleReset = countdown.reset;
 
   const handleSkipPhase = () => {
-    // Two clicks dispatched before React re-renders share this closure, so without a guard a
-    // fast double-click credited the same block twice. transitionFiredRef is reset by the
-    // zero-detection effect as soon as the next phase's countdown is in place.
-    if (transitionFiredRef.current) return;
-    transitionFiredRef.current = true;
     // Credit only the time actually spent, not the whole configured block.
-    handlePhaseTransition(phase, totalPhaseSeconds - timeLeft);
+    countdown.runGuarded(() => handlePhaseTransition(phase, totalPhaseSeconds - timeLeft));
   };
 
-  const handleApplyPreset = (work: number, sBreak: number) => {
+  const handleApplyPreset = (work: number, sBreak: number, lBreak: number) => {
     setWorkDuration(work);
     setShortBreakDuration(sBreak);
+    setLongBreakDuration(lBreak);
+    // Re-arm whichever phase is showing, including the long break — leaving it on the previous
+    // preset's length would contradict the tab label right next to it.
     if (phase === 'work') {
       setTimeLeft(work * 60);
     } else if (phase === 'shortBreak') {
       setTimeLeft(sBreak * 60);
+    } else {
+      setTimeLeft(lBreak * 60);
     }
     setIsRunning(false);
     setShowSettings(false);
@@ -246,18 +194,18 @@ export function PomodoroTimer({ onSessionComplete, soundEnabled }: PomodoroTimer
   return (
     <div id="pomodoro-timer-container" className="max-w-2xl mx-auto space-y-6">
       {/* Warm transition notification banner */}
-      {transitionNotification && (
+      {bannerMessage && (
         <div 
           id="pomodoro-transition-alert"
           className="p-4 rounded-xl bg-surface-muted border border-line-strong text-ink-body text-sm flex items-center justify-between shadow-xs transition-all duration-300"
         >
           <div className="flex items-center gap-3">
             <Sparkles className="w-4 h-4 text-accent-focus shrink-0" />
-            <span className="font-medium">{transitionNotification}</span>
+            <span className="font-medium">{bannerMessage}</span>
           </div>
           <button 
             id="dismiss-pomodoro-alert"
-            onClick={() => setTransitionNotification(null)}
+            onClick={() => dismissBanner()}
             className="text-xs text-ink-muted hover:text-ink-body underline ml-3"
           >
             Dismiss
@@ -478,33 +426,29 @@ export function PomodoroTimer({ onSessionComplete, soundEnabled }: PomodoroTimer
           <div id="pomodoro-settings-panel" className="mt-4 p-4 rounded-xl bg-canvas border border-line text-xs space-y-3">
             <p className="font-medium text-ink-body">Select preset:</p>
             <div className="flex flex-wrap gap-2">
-              <button
-                id="preset-25-5-btn"
-                onClick={() => handleApplyPreset(25, 5)}
-                className={`px-3 py-1.5 rounded-lg border ${
-                  workDuration === 25 ? 'border-accent-focus bg-tint-focus text-accent-focus font-semibold' : 'border-line bg-surface'
-                }`}
-              >
-                25m / 5m
-              </button>
-              <button
-                id="preset-50-10-btn"
-                onClick={() => handleApplyPreset(50, 10)}
-                className={`px-3 py-1.5 rounded-lg border ${
-                  workDuration === 50 ? 'border-accent-focus bg-tint-focus text-accent-focus font-semibold' : 'border-line bg-surface'
-                }`}
-              >
-                50m / 10m
-              </button>
-              <button
-                id="preset-15-3-btn"
-                onClick={() => handleApplyPreset(15, 3)}
-                className={`px-3 py-1.5 rounded-lg border ${
-                  workDuration === 15 ? 'border-accent-focus bg-tint-focus text-accent-focus font-semibold' : 'border-line bg-surface'
-                }`}
-              >
-                15m / 3m
-              </button>
+              {POMODORO_PRESETS.map((preset) => {
+                const isActive = workDuration === preset.work;
+                return (
+                  <button
+                    key={preset.id}
+                    id={`preset-${preset.work}-${preset.shortBreak}-btn`}
+                    onClick={() => handleApplyPreset(preset.work, preset.shortBreak, preset.longBreak)}
+                    title={preset.note}
+                    className={`px-3 py-1.5 rounded-lg border text-left transition-colors ${
+                      isActive
+                        ? 'border-accent-focus bg-tint-focus text-accent-focus font-semibold'
+                        : 'border-line bg-surface hover:border-line-strong'
+                    }`}
+                  >
+                    <span className="block font-mono">
+                      {preset.work}m / {preset.shortBreak}m
+                    </span>
+                    <span className={`block text-[10px] ${isActive ? 'text-accent-focus' : 'text-ink-muted'}`}>
+                      {preset.label}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}

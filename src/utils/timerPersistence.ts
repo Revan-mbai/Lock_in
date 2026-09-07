@@ -1,4 +1,4 @@
-import { TimeBoxItem, StudyMethodId } from '../types';
+import { TimeBoxItem, InterleaveSubject, StudyMethodId } from '../types';
 
 export interface PomodoroSavedState {
   /** Tab that owns the running timer; see TAB_ID. */
@@ -63,12 +63,52 @@ export interface TimeBoxingSavedState {
   lastTimestamp: number;
 }
 
+export interface RetrievalPracticeSavedState {
+  /** Tab that owns the running timer; see TAB_ID. */
+  ownerId?: string;
+  phase: 'study' | 'recall' | 'rest';
+  timeLeft: number;
+  isRunning: boolean;
+  taskSubject: string;
+  autoStartNext: boolean;
+  completedCycles: number;
+  lastTimestamp: number;
+}
+
+export interface InterleavingSavedState {
+  /** Tab that owns the running timer; see TAB_ID. */
+  ownerId?: string;
+  subjects: InterleaveSubject[];
+  blockMinutes: number;
+  activeSubjectIndex: number;
+  timeLeft: number;
+  isRunning: boolean;
+  autoRotate: boolean;
+  roundsCompleted: number;
+  lastTimestamp: number;
+}
+
+export interface FeynmanSavedState {
+  /** Tab that owns the running timer; see TAB_ID. */
+  ownerId?: string;
+  /** Index into the fixed four-stage protocol; equal to the stage count once finished. */
+  stageIndex: number;
+  timeLeft: number;
+  isRunning: boolean;
+  concept: string;
+  autoStartNext: boolean;
+  lastTimestamp: number;
+}
+
 const STORAGE_KEYS = {
   pomodoro: 'study_timer_pomodoro_v2',
   flowtime: 'study_timer_flowtime_v2',
   'ninety-min': 'study_timer_ninety-min_v2',
   'time-boxing': 'study_timer_time-boxing_v2',
   'fifty-two-seventeen': 'study_timer_fifty-two-seventeen_v2',
+  'retrieval-practice': 'study_timer_retrieval-practice_v1',
+  interleaving: 'study_timer_interleaving_v1',
+  feynman: 'study_timer_feynman_v1',
   activeTab: 'study_methods_active_tab_v2',
 };
 
@@ -411,6 +451,142 @@ export function saveTimeBoxingState(state: Omit<TimeBoxingSavedState, 'lastTimes
   }
 }
 
+
+// RETRIEVAL PRACTICE PERSISTENCE
+export function loadRetrievalPracticeState(): RetrievalPracticeSavedState | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS['retrieval-practice']);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as RetrievalPracticeSavedState;
+    if (parsed.isRunning && ownedByAnotherTab(parsed)) {
+      // Another live tab is already counting this block down and will log it when it ends.
+      // Rehydrate as paused so this tab shows the state without racing it or double-logging.
+      parsed.isRunning = false;
+    } else if (parsed.isRunning) {
+      const { seconds, exceededWindow } = elapsedSince(parsed.lastTimestamp);
+      if (exceededWindow) {
+        // Away longer than the catch-up window. Pause where the block actually stood rather
+        // than crediting unattended time — and rather than parking it at 00:00, which would
+        // leave a frozen card whose Resume restarts a whole fresh block.
+        parsed.isRunning = false;
+      } else {
+        // Inside the window the block really did run down, so leave isRunning set and let
+        // the timer fire its transition: the session is logged and the phase advances.
+        parsed.timeLeft = Math.max(0, parsed.timeLeft - seconds);
+      }
+      parsed.lastTimestamp = Date.now();
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+export function saveRetrievalPracticeState(state: Omit<RetrievalPracticeSavedState, 'lastTimestamp'>) {
+  if (deferToOwner(STORAGE_KEYS['retrieval-practice'], state.isRunning)) return;
+  try {
+    const toSave: RetrievalPracticeSavedState = {
+      ...state,
+      lastTimestamp: Date.now(),
+      ownerId: TAB_ID,
+    };
+    localStorage.setItem(STORAGE_KEYS['retrieval-practice'], JSON.stringify(toSave));
+    notifyTimersChanged();
+  } catch {
+    // Ignore quota errors
+  }
+}
+
+// INTERLEAVING PERSISTENCE
+export function loadInterleavingState(): InterleavingSavedState | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS['interleaving']);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as InterleavingSavedState;
+    if (parsed.isRunning && ownedByAnotherTab(parsed)) {
+      // Another live tab is already counting this block down and will log it when it ends.
+      // Rehydrate as paused so this tab shows the state without racing it or double-logging.
+      parsed.isRunning = false;
+    } else if (parsed.isRunning) {
+      const { seconds, exceededWindow } = elapsedSince(parsed.lastTimestamp);
+      if (exceededWindow) {
+        // Away longer than the catch-up window. Pause where the block actually stood rather
+        // than crediting unattended time — and rather than parking it at 00:00, which would
+        // leave a frozen card whose Resume restarts a whole fresh block.
+        parsed.isRunning = false;
+      } else {
+        // Inside the window the block really did run down, so leave isRunning set and let
+        // the timer fire its transition: the session is logged and the phase advances.
+        parsed.timeLeft = Math.max(0, parsed.timeLeft - seconds);
+      }
+      parsed.lastTimestamp = Date.now();
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+export function saveInterleavingState(state: Omit<InterleavingSavedState, 'lastTimestamp'>) {
+  if (deferToOwner(STORAGE_KEYS['interleaving'], state.isRunning)) return;
+  try {
+    const toSave: InterleavingSavedState = {
+      ...state,
+      lastTimestamp: Date.now(),
+      ownerId: TAB_ID,
+    };
+    localStorage.setItem(STORAGE_KEYS['interleaving'], JSON.stringify(toSave));
+    notifyTimersChanged();
+  } catch {
+    // Ignore quota errors
+  }
+}
+
+// FEYNMAN PERSISTENCE
+export function loadFeynmanState(): FeynmanSavedState | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS['feynman']);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as FeynmanSavedState;
+    if (parsed.isRunning && ownedByAnotherTab(parsed)) {
+      // Another live tab is already counting this block down and will log it when it ends.
+      // Rehydrate as paused so this tab shows the state without racing it or double-logging.
+      parsed.isRunning = false;
+    } else if (parsed.isRunning) {
+      const { seconds, exceededWindow } = elapsedSince(parsed.lastTimestamp);
+      if (exceededWindow) {
+        // Away longer than the catch-up window. Pause where the block actually stood rather
+        // than crediting unattended time — and rather than parking it at 00:00, which would
+        // leave a frozen card whose Resume restarts a whole fresh block.
+        parsed.isRunning = false;
+      } else {
+        // Inside the window the block really did run down, so leave isRunning set and let
+        // the timer fire its transition: the session is logged and the phase advances.
+        parsed.timeLeft = Math.max(0, parsed.timeLeft - seconds);
+      }
+      parsed.lastTimestamp = Date.now();
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+export function saveFeynmanState(state: Omit<FeynmanSavedState, 'lastTimestamp'>) {
+  if (deferToOwner(STORAGE_KEYS['feynman'], state.isRunning)) return;
+  try {
+    const toSave: FeynmanSavedState = {
+      ...state,
+      lastTimestamp: Date.now(),
+      ownerId: TAB_ID,
+    };
+    localStorage.setItem(STORAGE_KEYS['feynman'], JSON.stringify(toSave));
+    notifyTimersChanged();
+  } catch {
+    // Ignore quota errors
+  }
+}
+
 // ACTIVE TAB PERSISTENCE
 export function loadActiveTab(): string | null {
   try {
@@ -428,6 +604,9 @@ export function saveActiveTab(tab: string) {
   }
 }
 
+/** Short labels for the Feynman stages, shared by the timer and the header summary. */
+export const FEYNMAN_STAGE_LABELS = ['Study', 'Explain', 'Find gaps', 'Simplify'] as const;
+
 // SUMMARY FOR HEADER & METHOD CARDS
 export interface TimerSummaryInfo {
   isRunning: boolean;
@@ -442,6 +621,9 @@ export function getTimerSummaries(): Record<StudyMethodId, TimerSummaryInfo> {
     'ninety-min': { isRunning: false, remainingSeconds: 0 },
     'time-boxing': { isRunning: false, remainingSeconds: 0 },
     'fifty-two-seventeen': { isRunning: false, remainingSeconds: 0 },
+    'retrieval-practice': { isRunning: false, remainingSeconds: 0 },
+    interleaving: { isRunning: false, remainingSeconds: 0 },
+    feynman: { isRunning: false, remainingSeconds: 0 },
   };
 
   try {
@@ -487,6 +669,34 @@ export function getTimerSummaries(): Record<StudyMethodId, TimerSummaryInfo> {
         isRunning: boxing.isRunning,
         remainingSeconds: boxing.timeLeft,
         phase: boxing.boxes[boxing.activeBoxIndex]?.title || 'Box',
+      };
+    }
+
+    const retrieval = loadRetrievalPracticeState();
+    if (retrieval) {
+      summaries['retrieval-practice'] = {
+        isRunning: retrieval.isRunning,
+        remainingSeconds: retrieval.timeLeft,
+        phase:
+          retrieval.phase === 'study' ? 'Study' : retrieval.phase === 'recall' ? 'Recall' : 'Rest',
+      };
+    }
+
+    const interleave = loadInterleavingState();
+    if (interleave) {
+      summaries.interleaving = {
+        isRunning: interleave.isRunning,
+        remainingSeconds: interleave.timeLeft,
+        phase: interleave.subjects[interleave.activeSubjectIndex]?.name || 'Subject',
+      };
+    }
+
+    const feynman = loadFeynmanState();
+    if (feynman) {
+      summaries.feynman = {
+        isRunning: feynman.isRunning,
+        remainingSeconds: feynman.timeLeft,
+        phase: FEYNMAN_STAGE_LABELS[feynman.stageIndex] ?? 'Complete',
       };
     }
   } catch {

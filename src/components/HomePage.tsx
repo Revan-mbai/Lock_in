@@ -18,6 +18,9 @@ export function HomePage({ onSelectMethod }: HomePageProps) {
     { id: 'multi-subject', label: 'Multi-Task', recommendedId: 'time-boxing' as StudyMethodId },
     { id: 'endurance', label: 'Long Sessions', recommendedId: 'ninety-min' as StudyMethodId },
     { id: 'burnout', label: 'Paced 52/17', recommendedId: 'fifty-two-seventeen' as StudyMethodId },
+    { id: 'memorising', label: 'Memorising', recommendedId: 'retrieval-practice' as StudyMethodId },
+    { id: 'mixed-revision', label: 'Mixed Revision', recommendedId: 'interleaving' as StudyMethodId },
+    { id: 'understanding', label: 'Hard Concepts', recommendedId: 'feynman' as StudyMethodId },
   ];
 
   const activeFilter = filterScenarios.find((f) => f.id === selectedGoalFilter);

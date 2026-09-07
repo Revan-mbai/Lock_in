@@ -1,4 +1,12 @@
-export type StudyMethodId = 'pomodoro' | 'flowtime' | 'ninety-min' | 'time-boxing' | 'fifty-two-seventeen';
+export type StudyMethodId =
+  | 'pomodoro'
+  | 'flowtime'
+  | 'ninety-min'
+  | 'time-boxing'
+  | 'fifty-two-seventeen'
+  | 'retrieval-practice'
+  | 'interleaving'
+  | 'feynman';
 
 export type ActiveTab = 'overview' | StudyMethodId;
 
@@ -28,6 +36,12 @@ export interface TimeBoxItem {
   isBreak: boolean;
   notes?: string;
   completed: boolean;
+}
+
+export interface InterleaveSubject {
+  id: string;
+  /** Subject or topic name, shown on the rotation chip and logged as the task title. */
+  name: string;
 }
 
 export interface FocusSessionLog {

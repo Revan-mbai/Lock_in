@@ -2,8 +2,14 @@ export function formatTime(seconds: number): string {
   // Callers pass values straight out of localStorage, so guard against NaN/undefined and
   // negatives rather than rendering "NaN:NaN" or "-1:-5".
   const total = Number.isFinite(seconds) ? Math.max(0, Math.floor(seconds)) : 0;
-  const mins = Math.floor(total / 60);
+  const hrs = Math.floor(total / 3600);
+  const mins = Math.floor((total % 3600) / 60);
   const secs = total % 60;
+  // Roll over past an hour. Time Boxing allows 180-minute boxes and the Flowtime stopwatch has
+  // no ceiling at all, so without this they read "180:00" and "75:23".
+  if (hrs > 0) {
+    return `${hrs}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  }
   return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 }
 

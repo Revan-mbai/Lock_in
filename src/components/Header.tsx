@@ -1,9 +1,8 @@
-import { useState, useEffect } from 'react';
 import { ActiveTab, StudyMethodId } from '../types';
 import { AmbientSoundPlayer } from './AmbientSoundPlayer';
 import { PWAInstallButton } from './PWAInstallButton';
-import { Bell, BellOff, Maximize2, Minimize2, BarChart2, Sun, Moon } from 'lucide-react';
-import { getTimerSummaries } from '../utils/timerPersistence';
+import { Bell, BellOff, Maximize2, Minimize2, BarChart2, Sun, Moon, BellRing, BellDot } from 'lucide-react';
+import { useTimerSummaries } from '../hooks/useTimerSummaries';
 import { formatTime } from '../utils/formatters';
 
 interface HeaderProps {
@@ -19,6 +18,9 @@ interface HeaderProps {
   todayFocusMinutes: number;
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
+  notificationsOn: boolean;
+  notificationsAvailable: boolean;
+  onToggleNotifications: () => void;
 }
 
 export function Header({
@@ -34,20 +36,11 @@ export function Header({
   todayFocusMinutes,
   theme,
   onToggleTheme,
+  notificationsOn,
+  notificationsAvailable,
+  onToggleNotifications,
 }: HeaderProps) {
-  const [timerSummaries, setTimerSummaries] = useState(getTimerSummaries);
-
-  useEffect(() => {
-    const update = () => setTimerSummaries(getTimerSummaries());
-    window.addEventListener('study_timers_changed', update);
-    window.addEventListener('storage', update);
-    const interval = setInterval(update, 1000);
-    return () => {
-      window.removeEventListener('study_timers_changed', update);
-      window.removeEventListener('storage', update);
-      clearInterval(interval);
-    };
-  }, []);
+  const timerSummaries = useTimerSummaries();
 
   const tabs: { id: ActiveTab; label: string }[] = [
     { id: 'overview', label: 'All' },
@@ -56,6 +49,9 @@ export function Header({
     { id: 'ninety-min', label: '90-Min' },
     { id: 'time-boxing', label: 'Time Boxing' },
     { id: 'fifty-two-seventeen', label: '52/17' },
+    { id: 'retrieval-practice', label: 'Recall' },
+    { id: 'interleaving', label: 'Interleave' },
+    { id: 'feynman', label: 'Feynman' },
   ];
 
   if (isZenMode) {
@@ -90,7 +86,7 @@ export function Header({
           <button
             id="brand-home-link"
             onClick={() => onTabChange('overview')}
-            className="flex items-center text-left group transition-transform"
+            className="flex items-center text-left group transition-transform shrink-0"
           >
             <div>
               <div className="font-serif text-lg font-semibold tracking-tight text-ink leading-none group-hover:text-ink-secondary transition-colors">
@@ -103,7 +99,11 @@ export function Header({
           </button>
 
           {/* Center Tabs Navigation */}
-          <nav className="hidden md:flex items-center gap-1 bg-track/70 p-1 rounded-xl border border-line">
+          {/* Shown from lg up only: at md the row needed ~780px of the 705px available even
+              before the extra methods, so the page scrolled sideways. min-w-0 + overflow-x-auto
+              make this a hard guarantee — the nav scrolls inside itself rather than pushing the
+              header wider, whatever the labels or method count. */}
+          <nav className="hidden lg:flex items-center gap-1 bg-track/70 p-1 rounded-xl border border-line min-w-0 overflow-x-auto scrollbar-none">
             {tabs.map((tab) => {
               const isActive = activeTab === tab.id;
               const isTimerRunning = tab.id !== 'overview' && timerSummaries[tab.id as StudyMethodId]?.isRunning;
@@ -114,18 +114,27 @@ export function Header({
                   key={tab.id}
                   id={`nav-tab-${tab.id}`}
                   onClick={() => onTabChange(tab.id)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all inline-flex items-center gap-1.5 ${
+                  title={isTimerRunning ? `${tab.label} — ${formatTime(remainingSec)} left` : undefined}
+                  className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-all inline-flex items-center gap-1.5 ${
                     isActive
                       ? 'bg-surface text-ink shadow-xs'
-                      : 'text-ink-muted hover:text-ink hover:bg-canvas/50'
+                      : 'text-ink-secondary hover:text-ink hover:bg-canvas/50'
                   }`}
                 >
                   <span>{tab.label}</span>
+                  {/* A fixed-size dot, not a countdown. Rendering the remaining time inline grew
+                      each running tab by ~55px, so several timers at once widened the nav by
+                      hundreds of pixels and overflowed the header. The time is in the tooltip
+                      and read out below for screen readers; the full countdown still shows on
+                      the method card, the timer itself and the narrow-screen tab strip. */}
                   {isTimerRunning && (
-                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-mono bg-live-bg text-live-ink font-semibold border border-live-line">
-                      <span className="w-1.5 h-1.5 rounded-full bg-live animate-pulse" />
-                      {formatTime(remainingSec)}
-                    </span>
+                    <>
+                      <span
+                        aria-hidden="true"
+                        className="w-1.5 h-1.5 shrink-0 rounded-full bg-live animate-pulse"
+                      />
+                      <span className="sr-only">running, {formatTime(remainingSec)} left</span>
+                    </>
                   )}
                 </button>
               );
@@ -133,7 +142,7 @@ export function Header({
           </nav>
 
           {/* Right Toolbar Utilities */}
-          <div className="flex items-center gap-1.5 sm:gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             {/* Install App Button / Add to Home Screen */}
             <PWAInstallButton />
 
@@ -172,6 +181,30 @@ export function Header({
               )}
             </button>
 
+            {/* System notifications. Hidden entirely where the browser has no Notification API
+                or the user has blocked it at the browser level — a dead toggle is worse than
+                no toggle. */}
+            {notificationsAvailable && (
+              <button
+                id="notifications-toggle-btn"
+                onClick={onToggleNotifications}
+                title={
+                  notificationsOn
+                    ? 'Timer notifications on — click to turn off'
+                    : 'Get notified when a timer ends, even in another tab'
+                }
+                aria-label={notificationsOn ? 'Turn off timer notifications' : 'Turn on timer notifications'}
+                aria-pressed={notificationsOn}
+                className={`p-2 rounded-xl transition-colors ${
+                  notificationsOn
+                    ? 'text-accent-break hover:bg-surface-hover'
+                    : 'text-ink-secondary hover:text-ink hover:bg-surface-hover'
+                }`}
+              >
+                {notificationsOn ? <BellRing className="w-4 h-4" /> : <BellDot className="w-4 h-4" />}
+              </button>
+            )}
+
             {/* Light / dark theme */}
             <button
               id="theme-toggle-btn"
@@ -197,7 +230,7 @@ export function Header({
         </div>
 
         {/* Mobile Navigation Scrollbar */}
-        <div className="md:hidden flex items-center gap-1 overflow-x-auto pb-2.5 pt-1 scrollbar-none">
+        <div className="lg:hidden flex items-center gap-1 overflow-x-auto pb-2.5 pt-1 scrollbar-none">
           {tabs.map((tab) => {
             const isActive = activeTab === tab.id;
             const isTimerRunning = tab.id !== 'overview' && timerSummaries[tab.id as StudyMethodId]?.isRunning;
@@ -210,7 +243,7 @@ export function Header({
                 className={`px-3 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-all inline-flex items-center gap-1.5 ${
                   isActive
                     ? 'bg-ink text-canvas'
-                    : 'bg-surface-hover text-ink-muted'
+                    : 'bg-surface-hover text-ink-secondary'
                 }`}
               >
                 <span>{tab.label}</span>

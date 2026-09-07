@@ -38,8 +38,11 @@
   --color-ink-hover: #2e2a27;
   --color-ink-body: #292524;
   --color-ink-secondary: #57534e;
-  --color-ink-muted: #78716c;
-  --color-ink-faint: #a8a29e;
+  /* The lower two rungs were darkened together. ink-faint was #a8a29e — only 2.52:1 on a card,
+     below even the 3:1 large-text floor — and ink-muted at 4.80:1 left no room above it, so
+     raising one alone would have collapsed the ramp. Now 7.6 / 5.7 / 4.7 on a card surface. */
+  --color-ink-muted: #6d6560;
+  --color-ink-faint: #787069;
 
   /* Method accents */
   --color-accent-focus: #c86d51;
@@ -48,6 +51,9 @@
   --color-accent-deep: #7c6f5a;
   --color-accent-box: #b45309;
   --color-accent-sprint: #4a6b82;
+  --color-accent-recall: #7b5ea7;
+  --color-accent-rotate: #2f6f6a;
+  --color-accent-explain: #a0566b;
   --color-accent-danger: #dc2626;
 
   /* "Timer is running" pill */
@@ -61,6 +67,9 @@
   --color-tint-focus: #faf3f0;
   --color-tint-break: #f4f6f4;
   --color-tint-break-line: #dce4dc;
+  --color-tint-recall: #f6f2fa;
+  --color-tint-rotate: #eef5f4;
+  --color-tint-explain: #fbf1f3;
 
   /* Ambient soundscape icons */
   --color-sound-rain: #3b82f6;
@@ -95,7 +104,7 @@
   --color-ink-hover: #cbd5e1;
   --color-ink-body: #e2e8f0;
   --color-ink-secondary: #cbd5e1;
-  --color-ink-muted: #94a3b8;
+  --color-ink-muted: #9bacc0;
   --color-ink-faint: #8fa0b6;
 
   --color-accent-focus: #e68a6c;
@@ -104,6 +113,9 @@
   --color-accent-deep: #bcae93;
   --color-accent-box: #e9932f;
   --color-accent-sprint: #8ab0cc;
+  --color-accent-recall: #bfa3e0;
+  --color-accent-rotate: #74c4bc;
+  --color-accent-explain: #e0a1b1;
   --color-accent-danger: #f87171;
 
   --color-live: #5fbe81;
@@ -115,6 +127,9 @@
   --color-tint-focus: #3a2a25;
   --color-tint-break: #21332a;
   --color-tint-break-line: #2f5c41;
+  --color-tint-recall: #2c2540;
+  --color-tint-rotate: #1e3330;
+  --color-tint-explain: #3a2830;
 
   --color-sound-rain: #7dabf8;
   --color-sound-waves: #4bc7bb;
@@ -125,6 +140,18 @@
   --color-sound-white: #a5b0c0;
 
   --color-offline-icon: #b45309;
+}
+
+/* The tab strips scroll horizontally by design, so their scrollbars are noise. This class was
+   already in use on the narrow-screen strip but had never been defined — Tailwind v4 does not
+   ship it — so those scrollbars were visible all along. */
+@utility scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 /* Let native UI — scrollbars, form controls, the ambient volume slider — match the theme. */

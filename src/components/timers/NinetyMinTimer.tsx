@@ -1,9 +1,11 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Play, Pause, RotateCcw, SkipForward, Sparkles, Activity, Moon, Sun } from 'lucide-react';
 import { formatTimeWithHours } from '../../utils/formatters';
 import { playFocusCompleteChime, playBreakCompleteChime } from '../../utils/audio';
 import { FocusSessionLog } from '../../types';
-import { loadNinetyMinState, saveNinetyMinState, MAX_LIVE_GAP_SECONDS } from '../../utils/timerPersistence';
+import { loadNinetyMinState, saveNinetyMinState } from '../../utils/timerPersistence';
+import { useTransitionBanner } from '../../hooks/useTransitionBanner';
+import { useCountdown } from '../../hooks/useCountdown';
 
 interface NinetyMinTimerProps {
   onSessionComplete: (log: Omit<FocusSessionLog, 'id' | 'completedAt'>) => void;
@@ -22,31 +24,10 @@ export function NinetyMinTimer({ onSessionComplete, soundEnabled }: NinetyMinTim
   const [isRunning, setIsRunning] = useState(() => saved?.isRunning ?? false);
   const [taskSubject, setTaskSubject] = useState(() => saved?.taskSubject ?? '');
   const [autoStartNext, setAutoStartNext] = useState(() => saved?.autoStartNext ?? true);
-  const [transitionNotification, setTransitionNotification] = useState<string | null>(null);
 
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const lastTickRef = useRef<number>(Date.now());
-  const notificationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Guards the phase transition so a single expiry can only fire it once. Starts false: the
-  // loader only returns isRunning with timeLeft at 0 when the block really did run out while
-  // the app was briefly away, and that session still deserves to be logged.
-  const transitionFiredRef = useRef(false);
+  const { message: bannerMessage, show: showBanner, dismiss: dismissBanner } =
+    useTransitionBanner('90-Minute Work Cycle');
 
-  // Show a transition banner, replacing any banner still counting down.
-  const showTransitionNotification = (message: string) => {
-    setTransitionNotification(message);
-    if (notificationTimeoutRef.current) clearTimeout(notificationTimeoutRef.current);
-    notificationTimeoutRef.current = setTimeout(() => {
-      setTransitionNotification(null);
-      notificationTimeoutRef.current = null;
-    }, 4000);
-  };
-
-  useEffect(() => {
-    return () => {
-      if (notificationTimeoutRef.current) clearTimeout(notificationTimeoutRef.current);
-    };
-  }, []);
 
   // Save changes to localStorage
   useEffect(() => {
@@ -94,7 +75,7 @@ export function NinetyMinTimer({ onSessionComplete, soundEnabled }: NinetyMinTim
 
       setPhase('break');
       setTimeLeft(BREAK_SECONDS);
-      showTransitionNotification('90m cycle done. Starting 20m break.');
+      showBanner('90m cycle done. Starting 20m break.');
 
       if (autoStartNext) {
         setIsRunning(true);
@@ -106,7 +87,7 @@ export function NinetyMinTimer({ onSessionComplete, soundEnabled }: NinetyMinTim
 
       setPhase('work');
       setTimeLeft(WORK_SECONDS);
-      showTransitionNotification('Break complete. Ready for 90m focus.');
+      showBanner('Break complete. Ready for 90m focus.');
 
       if (autoStartNext) {
         setIsRunning(true);
@@ -116,95 +97,41 @@ export function NinetyMinTimer({ onSessionComplete, soundEnabled }: NinetyMinTim
     }
   };
 
-  // The updater stays pure — scheduling the phase transition from inside it made React run
-  // the transition twice under StrictMode, which logged every completed cycle twice.
-  useEffect(() => {
-    if (!isRunning) return;
+  // The countdown engine — tick, expiry detection and the skip guard — is shared by
+  // every timer so that its subtleties live in one place.
+  const countdown = useCountdown({
+    timeLeft,
+    setTimeLeft,
+    isRunning,
+    setIsRunning,
+    totalSeconds: totalPhaseSeconds,
+    onExpire: (elapsed) => handlePhaseTransition(phase, elapsed),
+  });
 
-    lastTickRef.current = Date.now();
 
-    const tick = () => {
-      // Advance by whole seconds and carry the sub-second remainder. Rounding (and flooring
-      // at 1) meant the extra visibilitychange tick could charge a full second for a few
-      // milliseconds, so the countdown ran fast on every tab switch.
-      const delta = Math.floor((Date.now() - lastTickRef.current) / 1000);
-      if (delta <= 0) return;
-      lastTickRef.current += delta * 1000;
-      if (delta > MAX_LIVE_GAP_SECONDS) {
-        // Far more time passed than any block can span, so the machine was asleep rather
-        // than the tab merely backgrounded. Pause instead of banking a session.
-        setIsRunning(false);
-        return;
-      }
-      setTimeLeft((prev) => Math.max(0, prev - delta));
-    };
+  const handleStartPause = countdown.toggle;
 
-    timerRef.current = setInterval(tick, 1000);
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        tick();
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-      timerRef.current = null;
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [isRunning]);
-
-  // Fire the phase transition once the countdown reaches zero. Running it here rather than
-  // inside the tick means it always sees the current task name and sound setting.
-  useEffect(() => {
-    if (timeLeft > 0) {
-      transitionFiredRef.current = false;
-      return;
-    }
-    if (!isRunning || transitionFiredRef.current) return;
-    transitionFiredRef.current = true;
-    handlePhaseTransition(phase, totalPhaseSeconds);
-  }, [timeLeft, isRunning, phase, totalPhaseSeconds]);
-
-  const handleStartPause = () => {
-    // Pressing Play on an exhausted block starts the next one rather than re-completing the
-    // spent one and logging a phantom full-length session.
-    if (!isRunning && timeLeft <= 0) {
-      setTimeLeft(totalPhaseSeconds);
-    }
-    setIsRunning(!isRunning);
-  };
-
-  const handleReset = () => {
-    setIsRunning(false);
-    setTimeLeft(phase === 'work' ? WORK_SECONDS : BREAK_SECONDS);
-  };
+  const handleReset = countdown.reset;
 
   const handleSkipPhase = () => {
-    // Two clicks dispatched before React re-renders share this closure, so without a guard a
-    // fast double-click credited the same block twice. transitionFiredRef is reset by the
-    // zero-detection effect as soon as the next phase's countdown is in place.
-    if (transitionFiredRef.current) return;
-    transitionFiredRef.current = true;
     // Credit only the time actually spent, not the whole configured block.
-    handlePhaseTransition(phase, totalPhaseSeconds - timeLeft);
+    countdown.runGuarded(() => handlePhaseTransition(phase, totalPhaseSeconds - timeLeft));
   };
 
   return (
     <div id="ninety-min-timer-container" className="max-w-2xl mx-auto space-y-6">
-      {transitionNotification && (
+      {bannerMessage && (
         <div 
           id="ninety-min-transition-alert"
           className="p-4 rounded-xl bg-surface-muted border border-line-strong text-ink-body text-sm flex items-center justify-between shadow-xs transition-all"
         >
           <div className="flex items-center gap-3">
             <Sparkles className="w-4 h-4 text-accent-deep shrink-0" />
-            <span className="font-medium">{transitionNotification}</span>
+            <span className="font-medium">{bannerMessage}</span>
           </div>
           <button 
             id="dismiss-ninety-min-alert"
-            onClick={() => setTransitionNotification(null)}
+            onClick={() => dismissBanner()}
             className="text-xs text-ink-muted hover:text-ink-body underline ml-3"
           >
             Dismiss

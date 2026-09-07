@@ -4,6 +4,7 @@ import { formatTime, calculateFlowtimeBreakMinutes } from '../../utils/formatter
 import { playFocusCompleteChime, playBreakCompleteChime } from '../../utils/audio';
 import { FocusSessionLog } from '../../types';
 import { loadFlowtimeState, saveFlowtimeState, MAX_LIVE_GAP_SECONDS, MAX_FLOW_GAP_SECONDS } from '../../utils/timerPersistence';
+import { useTransitionBanner } from '../../hooks/useTransitionBanner';
 
 // Kept in lockstep with calculateFlowtimeBreakMinutes in ../../utils/formatters.
 const REST_TIERS: { label: string; fromMinutes: number; toMinutes: number | null; breakMinutes: number }[] = [
@@ -33,34 +34,20 @@ export function FlowtimeTimer({ onSessionComplete, soundEnabled }: FlowtimeTimer
 
   const [taskSubject, setTaskSubject] = useState(() => saved?.taskSubject ?? '');
   const [sessionRecords, setSessionRecords] = useState<{ id: string; minutes: number; breakMins: number; timestamp: string; dateKey?: string }[]>(() => saved?.sessionRecords ?? []);
-  const [transitionNotification, setTransitionNotification] = useState<string | null>(null);
+
+  const { message: bannerMessage, show: showBanner, dismiss: dismissBanner } =
+    useTransitionBanner('Flowtime Technique');
 
   const flowTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const breakTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastFlowTickRef = useRef<number>(Date.now());
   const lastBreakTickRef = useRef<number>(Date.now());
-  const notificationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Guards the break-complete transition so a single expiry can only fire it once.
   const breakEndedRef = useRef(false);
   // Guards ending a flow block: two clicks dispatched before React re-renders share the same
   // closure, so a fast double-click on "Break" logged the same flow session twice.
   const flowEndFiredRef = useRef(false);
 
-  // Show a transition banner, replacing any banner still counting down.
-  const showTransitionNotification = (message: string) => {
-    setTransitionNotification(message);
-    if (notificationTimeoutRef.current) clearTimeout(notificationTimeoutRef.current);
-    notificationTimeoutRef.current = setTimeout(() => {
-      setTransitionNotification(null);
-      notificationTimeoutRef.current = null;
-    }, 4000);
-  };
-
-  useEffect(() => {
-    return () => {
-      if (notificationTimeoutRef.current) clearTimeout(notificationTimeoutRef.current);
-    };
-  }, []);
 
   // Save changes to localStorage
   useEffect(() => {
@@ -180,8 +167,8 @@ export function FlowtimeTimer({ onSessionComplete, soundEnabled }: FlowtimeTimer
     setIsBreakRunning(false);
     setMode('flow');
     setElapsedFlowSeconds(0);
-    showTransitionNotification('Break complete. Ready for next flow block.');
-  }, [breakTimeLeft, mode, isBreakRunning, soundEnabled]);
+    showBanner('Break complete. Ready for next flow block.');
+  }, [breakTimeLeft, mode, isBreakRunning, soundEnabled, showBanner]);
 
   // Released once the mode change has actually landed, so a later flow block can end normally.
   useEffect(() => {
@@ -226,7 +213,7 @@ export function FlowtimeTimer({ onSessionComplete, soundEnabled }: FlowtimeTimer
     setBreakTimeLeft(breakSeconds);
     setIsBreakRunning(true);
 
-    showTransitionNotification(
+    showBanner(
       `Flow ended (${focusedMinutes}m). Starting ${breakMinutes}m break.`
     );
   };
@@ -255,18 +242,18 @@ export function FlowtimeTimer({ onSessionComplete, soundEnabled }: FlowtimeTimer
 
   return (
     <div id="flowtime-timer-container" className="max-w-2xl mx-auto space-y-6">
-      {transitionNotification && (
+      {bannerMessage && (
         <div 
           id="flowtime-transition-alert"
           className="p-4 rounded-xl bg-surface-muted border border-line-strong text-ink-body text-sm flex items-center justify-between shadow-xs transition-all"
         >
           <div className="flex items-center gap-3">
             <Sparkles className="w-4 h-4 text-accent-break shrink-0" />
-            <span className="font-medium">{transitionNotification}</span>
+            <span className="font-medium">{bannerMessage}</span>
           </div>
           <button 
             id="dismiss-flowtime-alert"
-            onClick={() => setTransitionNotification(null)}
+            onClick={() => dismissBanner()}
             className="text-xs text-ink-muted hover:text-ink-body underline ml-3"
           >
             Dismiss

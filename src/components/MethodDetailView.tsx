@@ -5,6 +5,9 @@ import { FlowtimeTimer } from './timers/FlowtimeTimer';
 import { NinetyMinTimer } from './timers/NinetyMinTimer';
 import { TimeBoxingTimer } from './timers/TimeBoxingTimer';
 import { FiftyTwoSeventeenTimer } from './timers/FiftyTwoSeventeenTimer';
+import { RetrievalPracticeTimer } from './timers/RetrievalPracticeTimer';
+import { InterleavingTimer } from './timers/InterleavingTimer';
+import { FeynmanTimer } from './timers/FeynmanTimer';
 import { ArrowLeft, Lightbulb, CheckCircle2, ChevronRight } from 'lucide-react';
 import { FocusSessionLog } from '../types';
 
@@ -98,6 +101,24 @@ export function MethodDetailView({
         )}
         {methodId === 'fifty-two-seventeen' && (
           <FiftyTwoSeventeenTimer
+            onSessionComplete={onSessionComplete}
+            soundEnabled={soundEnabled}
+          />
+        )}
+        {methodId === 'retrieval-practice' && (
+          <RetrievalPracticeTimer
+            onSessionComplete={onSessionComplete}
+            soundEnabled={soundEnabled}
+          />
+        )}
+        {methodId === 'interleaving' && (
+          <InterleavingTimer
+            onSessionComplete={onSessionComplete}
+            soundEnabled={soundEnabled}
+          />
+        )}
+        {methodId === 'feynman' && (
+          <FeynmanTimer
             onSessionComplete={onSessionComplete}
             soundEnabled={soundEnabled}
           />

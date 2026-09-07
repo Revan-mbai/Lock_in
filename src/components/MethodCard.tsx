@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+
 import { ArrowRight, Clock, Coffee } from 'lucide-react';
 import { StudyMethodInfo, StudyMethodId } from '../types';
-import { getTimerSummaries } from '../utils/timerPersistence';
+import { useTimerSummaries } from '../hooks/useTimerSummaries';
 import { formatTime } from '../utils/formatters';
 
 interface MethodCardProps {
@@ -11,22 +11,7 @@ interface MethodCardProps {
 }
 
 export function MethodCard({ method, onSelect }: MethodCardProps) {
-  const [summary, setSummary] = useState(() => getTimerSummaries()[method.id]);
-
-  useEffect(() => {
-    const update = () => {
-      const summaries = getTimerSummaries();
-      setSummary(summaries[method.id]);
-    };
-    window.addEventListener('study_timers_changed', update);
-    window.addEventListener('storage', update);
-    const interval = setInterval(update, 1000);
-    return () => {
-      window.removeEventListener('study_timers_changed', update);
-      window.removeEventListener('storage', update);
-      clearInterval(interval);
-    };
-  }, [method.id]);
+  const summary = useTimerSummaries()[method.id];
 
   const isRunning = summary?.isRunning;
   const remainingSec = summary?.remainingSeconds || 0;

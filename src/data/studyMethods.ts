@@ -121,4 +121,76 @@ export const STUDY_METHODS: StudyMethodInfo[] = [
     scienceNote: '17 minutes offline resets executive attention without causing sluggishness.',
     accentColor: 'var(--color-accent-sprint)', // warm muted slate blue
   },
+  {
+    id: 'retrieval-practice',
+    name: 'Retrieval Practice',
+    subtitle: 'Study, recall, rest',
+    tagline: '20 min study, 5 min recall',
+    focusTimeDisplay: '20 + 5 min',
+    breakTimeDisplay: '5 min',
+    origin: 'Formalised by Roediger and Karpicke in 2006, on a century of testing-effect research.',
+    description: 'Study for 20 minutes, then close everything and rebuild it from memory for 5 minutes before a short rest.',
+    bestFor: [
+      'Exam revision',
+      'Definitions & formulas',
+      'Long-term retention',
+    ],
+    howItWorks: [
+      'Pick one topic to learn.',
+      'Study it for 20 minutes.',
+      'Close your notes and recall for 5 minutes.',
+      'Rest for 5 minutes, then repeat.',
+    ],
+    autoShifts: true,
+    scienceNote: 'Pulling knowledge back out strengthens memory far more than reading it again.',
+    accentColor: 'var(--color-accent-recall)', // muted violet
+  },
+  {
+    id: 'interleaving',
+    name: 'Interleaved Practice',
+    subtitle: 'Rotating subjects',
+    tagline: 'Rotate subjects every 20 min',
+    focusTimeDisplay: '20 min blocks',
+    breakTimeDisplay: 'Optional',
+    origin: 'Shown by Rohrer and Taylor in 2007 to beat studying one subject to completion.',
+    description: 'Rotate through two to five subjects in fixed blocks instead of finishing one before starting the next.',
+    bestFor: [
+      'Several exams at once',
+      'Telling problem types apart',
+      'Maths & languages',
+    ],
+    howItWorks: [
+      'List the subjects you want to mix.',
+      'Set how long each block runs.',
+      'Study each subject for one block.',
+      'Keep cycling — the switching is the point.',
+    ],
+    autoShifts: true,
+    scienceNote: 'Mixing topics feels harder and looks worse while practising, yet retention and transfer improve.',
+    accentColor: 'var(--color-accent-rotate)', // deep teal
+  },
+  {
+    id: 'feynman',
+    name: 'Feynman Technique',
+    subtitle: 'Explain to understand',
+    tagline: 'Four stages, 40 min total',
+    focusTimeDisplay: '40 min total',
+    breakTimeDisplay: 'Optional',
+    origin: 'Named for physicist Richard Feynman and his notebook of things he did not yet know.',
+    description: 'Study a concept, explain it in plain words, hunt the gaps that exposes, then simplify it again.',
+    bestFor: [
+      'Difficult concepts',
+      'Theory & essay subjects',
+      'Testing real understanding',
+    ],
+    howItWorks: [
+      'Study the concept for 15 minutes.',
+      'Explain it simply for 10 minutes.',
+      'Go back and close the gaps for 10 minutes.',
+      'Simplify it with an analogy for 5 minutes.',
+    ],
+    autoShifts: true,
+    scienceNote: 'Explaining something plainly exposes the gaps that silent re-reading hides.',
+    accentColor: 'var(--color-accent-explain)', // clay rose
+  },
 ];

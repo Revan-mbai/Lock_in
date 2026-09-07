@@ -6,6 +6,12 @@ import { MethodDetailView } from './components/MethodDetailView';
 import { StudyStatsModal } from './components/StudyStatsModal';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { loadActiveTab, saveActiveTab } from './utils/timerPersistence';
+import {
+  notificationSupport,
+  notificationsEnabled,
+  setNotificationsEnabled,
+  requestNotificationPermission,
+} from './utils/notifications';
 
 const STORAGE_KEY_LOGS = 'study_methods_focus_logs_v1';
 
@@ -67,7 +73,7 @@ function saveBooleanPreference(key: string, value: boolean) {
 export default function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>(() => {
     const saved = loadActiveTab();
-    if (saved && ['overview', 'pomodoro', 'flowtime', 'ninety-min', 'time-boxing', 'fifty-two-seventeen'].includes(saved)) {
+    if (saved && ['overview', 'pomodoro', 'flowtime', 'ninety-min', 'time-boxing', 'fifty-two-seventeen', 'retrieval-practice', 'interleaving', 'feynman'].includes(saved)) {
       return saved as ActiveTab;
     }
     return 'overview';
@@ -77,6 +83,10 @@ export default function App() {
   const [isAmbientPlaying, setIsAmbientPlaying] = useState(false);
   const [isZenMode, setIsZenMode] = useState(() => loadBooleanPreference(STORAGE_KEY_ZEN, false));
   const [theme, setTheme] = useState<Theme>(readAppliedTheme);
+  // Read once: the browser's permission state cannot change without a user action, and each
+  // action below updates this itself.
+  const [notificationsOn, setNotificationsOn] = useState(notificationsEnabled);
+  const [notificationSupportState, setNotificationSupportState] = useState(notificationSupport);
   const [isStatsOpen, setIsStatsOpen] = useState(false);
   // Read during render, not from an effect. Child effects run before the parent's, so a
   // timer that completed on this very mount recorded its session *before* a load effect
@@ -139,6 +149,19 @@ export default function App() {
     return () => query.removeEventListener('change', handleChange);
   }, []);
 
+  // Permission has to be asked for from a real user gesture, which this click is.
+  const handleToggleNotifications = async () => {
+    if (notificationsOn) {
+      setNotificationsOn(false);
+      setNotificationsEnabled(false);
+      return;
+    }
+    const granted = await requestNotificationPermission();
+    setNotificationSupportState(notificationSupport());
+    setNotificationsOn(granted);
+    setNotificationsEnabled(granted);
+  };
+
   const handleTabChange = (tab: ActiveTab) => {
     setActiveTab(tab);
     saveActiveTab(tab);
@@ -187,13 +210,15 @@ export default function App() {
 
   const todayStr = new Date().toDateString();
 
-  // Clears only what the stats modal actually shows. It used to wipe the whole multi-day
-  // history, which the today-scoped modal never displayed, so a week of sessions could be
-  // destroyed by a button sitting above an empty list.
-  const handleClearLogs = () => {
-    setSessionLogs((prev) =>
-      prev.filter((log) => new Date(log.completedAt).toDateString() !== todayStr)
-    );
+  /**
+   * Delete exactly the entries named. The modal decides which — the entries it is currently
+   * showing, or a single one — so the button can never destroy history the user cannot see,
+   * which is what the old blanket "clear" did.
+   */
+  const handleDeleteEntries = (ids: string[]) => {
+    if (!ids.length) return;
+    const doomed = new Set(ids);
+    setSessionLogs((prev) => prev.filter((log) => !doomed.has(log.id)));
   };
   const todayFocusMinutes = sessionLogs
     .filter((log) => log.phase === 'work' && new Date(log.completedAt).toDateString() === todayStr)
@@ -218,6 +243,11 @@ export default function App() {
         onToggleZenMode={handleToggleZenMode}
         theme={theme}
         onToggleTheme={handleToggleTheme}
+        notificationsOn={notificationsOn}
+        notificationsAvailable={
+          notificationSupportState !== 'unsupported' && notificationSupportState !== 'denied'
+        }
+        onToggleNotifications={handleToggleNotifications}
         onOpenStats={() => setIsStatsOpen(true)}
         todayFocusMinutes={todayFocusMinutes}
       />
@@ -227,7 +257,7 @@ export default function App() {
         <div className={activeTab === 'overview' ? 'block' : 'hidden'}>
           <HomePage onSelectMethod={handleSelectMethod} />
         </div>
-        {(['pomodoro', 'flowtime', 'ninety-min', 'time-boxing', 'fifty-two-seventeen'] as StudyMethodId[]).map((id) => (
+        {(['pomodoro', 'flowtime', 'ninety-min', 'time-boxing', 'fifty-two-seventeen', 'retrieval-practice', 'interleaving', 'feynman'] as StudyMethodId[]).map((id) => (
           <div key={id} className={activeTab === id ? 'block' : 'hidden'}>
             <MethodDetailView
               methodId={id}
@@ -272,7 +302,7 @@ export default function App() {
         isOpen={isStatsOpen}
         onClose={() => setIsStatsOpen(false)}
         logs={sessionLogs}
-        onClearLogs={handleClearLogs}
+        onDeleteEntries={handleDeleteEntries}
       />
 
       {/* PWA Offline Mode Indicator */}
