@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { Analytics } from '@vercel/analytics/react';
 import { ActiveTab, StudyMethodId, FocusSessionLog } from './types';
 import { Header } from './components/Header';
 import { HomePage } from './components/HomePage';
@@ -307,6 +308,9 @@ export default function App() {
 
       {/* PWA Offline Mode Indicator */}
       <OfflineIndicator />
+
+      {/* Vercel Web Analytics */}
+      <Analytics />
     </div>
   );
 }
